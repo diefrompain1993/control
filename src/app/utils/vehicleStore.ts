@@ -1,4 +1,4 @@
-﻿export type VehicleCategory = 'white' | 'black' | 'contractor' | 'unlisted';
+export type VehicleCategory = 'white' | 'black' | 'contractor' | 'unlisted';
 
 export interface StoredVehicle {
   id: string;
@@ -10,6 +10,7 @@ export interface StoredVehicle {
   addedDate: string;
   notes?: string;
 }
+
 
 const STORAGE_KEY = 'stored_vehicles';
 const OVERRIDES_KEY = 'vehicle_overrides';

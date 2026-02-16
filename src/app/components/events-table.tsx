@@ -1,7 +1,7 @@
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { useMemo, useState } from 'react';
-import { formatPlateNumber, getPlateRegionCode } from '@/app/utils/plate';
+import { formatPlateNumber, getPlateCountryCode } from '@/app/utils/plate';
 
 interface Event {
   id: string;
@@ -17,7 +17,7 @@ const events: Event[] = [
     id: '00001',
     time: '12:41:23',
     camera: 'Въезд-1',
-    plateNumber: 'А123ВС',
+    plateNumber: 'А123ВС77',
     owner: 'Иванов И.И.',
     status: 'Чёрный'
   },
@@ -25,7 +25,7 @@ const events: Event[] = [
     id: '00002',
     time: '12:39:45',
     camera: 'Въезд-2',
-    plateNumber: 'Х777ХХ',
+    plateNumber: 'Х777ХХ78',
     owner: 'Петров П.П.',
     status: 'Белый'
   },
@@ -33,7 +33,7 @@ const events: Event[] = [
     id: '00003',
     time: '12:35:12',
     camera: 'Въезд-1',
-    plateNumber: 'М999МР',
+    plateNumber: 'М999МР77',
     owner: 'ООО "СМК"',
     status: 'Подрядчик'
   },
@@ -41,7 +41,7 @@ const events: Event[] = [
     id: '00004',
     time: '12:20:08',
     camera: 'Въезд-1',
-    plateNumber: 'К456КМ',
+    plateNumber: 'К456КМ77',
     owner: 'Неизвестно',
     status: 'Нет в списках'
   },
@@ -49,7 +49,7 @@ const events: Event[] = [
     id: '00005',
     time: '12:15:32',
     camera: 'Въезд-2',
-    plateNumber: 'В888АА',
+    plateNumber: 'В888АА50',
     owner: 'Смирнова Е.П.',
     status: 'Белый'
   },
@@ -57,7 +57,7 @@ const events: Event[] = [
     id: '00006',
     time: '12:10:15',
     camera: 'Въезд-1',
-    plateNumber: 'О555ОО',
+    plateNumber: 'О555ОО50',
     owner: 'ООО "Строймонтаж"',
     status: 'Подрядчик'
   },
@@ -65,7 +65,7 @@ const events: Event[] = [
     id: '00007',
     time: '12:05:47',
     camera: 'Въезд-2',
-    plateNumber: 'Р321КР',
+    plateNumber: 'Р321КР78',
     owner: 'Неизвестно',
     status: 'Нет в списках'
   },
@@ -73,7 +73,7 @@ const events: Event[] = [
     id: '00008',
     time: '12:01:19',
     camera: 'Въезд-2',
-    plateNumber: 'В888АА',
+    plateNumber: 'В888АА50',
     owner: 'Смирнова Е.П.',
     status: 'Белый'
   },
@@ -81,7 +81,7 @@ const events: Event[] = [
     id: '00009',
     time: '11:58:42',
     camera: 'Въезд-2',
-    plateNumber: 'Р321КР',
+    plateNumber: 'Р321КР78',
     owner: 'Неизвестно',
     status: 'Нет в списках'
   },
@@ -89,7 +89,7 @@ const events: Event[] = [
     id: '00010',
     time: '11:54:22',
     camera: 'Въезд-1',
-    plateNumber: 'О555ОО',
+    plateNumber: 'О555ОО50',
     owner: 'ООО "Строймонтаж"',
     status: 'Подрядчик'
   }
@@ -144,14 +144,17 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
                 <button
                   type="button"
                   onClick={() => setTimeSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                  className="inline-flex items-center justify-center gap-1 text-foreground/70 hover:text-foreground transition-colors text-[12px] font-bold uppercase tracking-wider"
+                  className="grid w-full grid-cols-[1fr_auto_1fr] items-center text-foreground/70 hover:text-foreground transition-colors text-[12px] font-bold uppercase tracking-wider"
                 >
-                  Время
-                  {timeSort === 'asc' ? (
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  )}
+                  <span aria-hidden="true" />
+                  <span>Время</span>
+                  <span className="inline-flex items-center justify-start">
+                    {timeSort === 'asc' ? (
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    )}
+                  </span>
                 </button>
               </th>
               <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
@@ -172,7 +175,7 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
             {sortedEvents.map((event) => {
               const isUnrecognized = event.status === 'Нет в списках';
               const ownerLabel = isUnrecognized ? 'Неизвестно' : event.owner;
-              const countryCode = getPlateRegionCode(event.plateNumber);
+              const countryCode = getPlateCountryCode(event.plateNumber);
               const formattedPlate = formatPlateNumber(event.plateNumber);
 
               return (
@@ -180,41 +183,47 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
                   key={event.id}
                   className="border-b border-border/50 hover:bg-muted/30 transition-smooth group"
                 >
-                  <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground/80 font-mono transition-colors hover:text-foreground">
+                  <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground/80 font-mono tabular-nums transition-colors hover:text-foreground">
                     {event.time}
                   </td>
                   <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground/80">
                     {event.camera}
                   </td>
                   <td className="py-4 px-4 text-center text-foreground plate-text">
-                    <span className="inline-flex items-center gap-2">
-                      {formattedPlate}
-                      <span className="text-[11px] text-muted-foreground font-semibold">
-                        ({countryCode})
+                    <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
+                      <span aria-hidden="true" />
+                      <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
+                        {formattedPlate}
+                        <span className="text-[11px] text-muted-foreground font-semibold">
+                          ({countryCode})
+                        </span>
                       </span>
-                      {isUnrecognized && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              aria-label="Плохо распознан номер"
-                              className="inline-flex items-center text-amber-500 opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 rounded-sm"
+                      <span className="inline-flex items-center justify-start">
+                        {isUnrecognized && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label="Плохо распознан номер"
+                                className="inline-flex items-center text-amber-500 opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 rounded-sm"
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              sideOffset={6}
+                              className="tooltip-cloud"
+                              arrowClassName="tooltip-cloud-arrow"
+                              showArrow={false}
                             >
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side="top"
-                            sideOffset={6}
-                            className="tooltip-cloud"
-                            arrowClassName="tooltip-cloud-arrow"
-                            showArrow={false}
-                          >
-                            Плохо распознан номер
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </span>
+                              Плохо распознан номер
+                          
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </span>
+                    </div>
                   </td>
                   <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground/80">
                     {ownerLabel}

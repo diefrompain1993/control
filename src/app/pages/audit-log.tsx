@@ -23,13 +23,6 @@ const mockAuditLog: AuditEntry[] = [
     action: 'Изменён статус',
     target: 'Х777ХХ',
     details: 'Переведён в белый список'
-  },
-  {
-    timestamp: '28.01.2025 08:45:03',
-    user: 'Крылов Д. О.',
-    action: 'Создан пользователь',
-    target: 'Наблюдатель 1',
-    details: 'Роль: Наблюдатель'
   }
 ];
 
@@ -157,10 +150,11 @@ export function AuditLog() {
               onChange={setSearchQuery}
               placeholder="Введите имя или объект"
               icon={<Search className="w-4 h-4" />}
+              className="h-[36px]"
             />
           </div>
 
-          <div className="flex-1 min-w-[200px]">
+          <div className="w-[220px] flex-none">
             <Select
               label="Тип действия"
               value={actionFilter}
@@ -172,21 +166,30 @@ export function AuditLog() {
                 { value: 'delete', label: 'Удаление' }
               ]}
               size="md"
+              className="h-[36px]"
             />
           </div>
 
-          <div className="flex-1 min-w-[200px]">
+          <div className="w-[180px] flex-none">
             <DatePickerInput
               label="Дата"
               value={dateFilter}
               onChange={(value) => setDateFilter(formatDateInput(value))}
               placeholder="ДД.ММ.ГГГГ"
+              className="h-[36px] w-[180px]"
             />
           </div>
 
           <div className="flex items-end gap-2">
-            <Button type="submit">Применить</Button>
-            <Button type="button" variant="destructive" onClick={handleResetFilters}>
+            <Button type="submit" className="h-[36px] px-4">
+              Применить
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleResetFilters}
+              className="h-[36px] px-4"
+            >
               Сбросить
             </Button>
           </div>

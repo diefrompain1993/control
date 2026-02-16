@@ -1,5 +1,5 @@
 ﻿import { Calendar as CalendarIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { DateRange } from 'react-day-picker';
 import { ru } from 'date-fns/locale';
 import { Calendar } from '@/app/components/ui/calendar';
@@ -11,6 +11,7 @@ interface DatePickerInputProps {
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  className?: string;
 }
 
 const formatDateValue = (date: Date) => {
@@ -97,14 +98,16 @@ export function DatePickerInput({
   value,
   onChange,
   placeholder,
-  disabled = false
+  disabled = false,
+  className
 }: DatePickerInputProps) {
   const [open, setOpen] = useState(false);
+  const inputWrapperRef = useRef<HTMLDivElement | null>(null);
   const selectedRange = useMemo(() => parseRangeValue(value), [value]);
   const startLabel = selectedRange?.from ? formatLongDate(selectedRange.from) : '—';
   const endLabel = selectedRange?.to ? formatLongDate(selectedRange.to) : '—';
   const currentYear = new Date().getFullYear();
-  const fromYear = 1990;
+  const fromYear = 2025;
   const toYear = currentYear + 5;
 
   const handleSelect = (range: DateRange | undefined) => {
@@ -133,7 +136,6 @@ export function DatePickerInput({
       } else {
         onChange(`${formatDateValue(range.from)} - ${formatDateValue(range.to)}`);
       }
-      setOpen(false);
       return;
     }
 
@@ -151,14 +153,29 @@ export function DatePickerInput({
     <div>
       {label && <label className="block text-sm text-gray-600 mb-2">{label}</label>}
       <Popover open={open} onOpenChange={setOpen}>
-        <div className="relative">
+        <div className="relative" ref={inputWrapperRef}>
           <input
             type="text"
             value={value}
             onChange={(event) => onChange(event.target.value)}
+            onFocus={() => {
+              if (!disabled) {
+                setOpen(true);
+              }
+            }}
+            onClick={() => {
+              if (!disabled) {
+                setOpen(true);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                setOpen(false);
+              }
+            }}
             placeholder={placeholder}
             disabled={disabled}
-            className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded text-sm transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className={`w-full pl-4 pr-10 py-2 border border-gray-300 rounded text-sm transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
           />
           <PopoverTrigger asChild>
             <button
@@ -173,32 +190,47 @@ export function DatePickerInput({
         </div>
         <PopoverContent
           align="start"
-          className="w-[360px] p-0 overflow-hidden bg-slate-900 text-slate-100 border border-slate-800 shadow-xl"
+          className="w-[360px] p-0 overflow-hidden bg-white text-slate-900 border border-gray-200 shadow-xl"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onInteractOutside={(event) => {
+            const target = event.target as Node | null;
+            if (target && inputWrapperRef.current?.contains(target)) {
+              event.preventDefault();
+            }
+          }}
         >
-          <div className="flex items-center justify-between px-4 pt-3 text-xs text-slate-400">
+          <div className="flex items-center justify-between px-4 pt-3 text-xs text-slate-500">
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="text-sky-300 hover:text-sky-200 transition-colors"
+              className="text-slate-600 hover:text-slate-900 transition-colors"
             >
               Закрыть
             </button>
-            <span className="text-slate-200 font-semibold">Выберите период</span>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="text-sky-300 hover:text-sky-200 transition-colors"
-            >
-              Готово
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => onChange('')}
+                className="text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                Сбросить
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                Готово
+              </button>
+            </div>
           </div>
-          <div className="px-4 pb-3 pt-3 border-b border-slate-800">
+          <div className="px-4 pb-3 pt-3 border-b border-gray-200">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">Дата начала</div>
                 <div
                   className={`text-lg font-semibold ${
-                    selectedRange?.from ? 'text-slate-100' : 'text-slate-500'
+                    selectedRange?.from ? 'text-slate-900' : 'text-slate-400'
                   }`}
                 >
                   {startLabel}
@@ -208,7 +240,7 @@ export function DatePickerInput({
                 <div className="text-[11px] uppercase tracking-wide text-slate-500">Дата окончания</div>
                 <div
                   className={`text-lg font-semibold ${
-                    selectedRange?.to ? 'text-slate-100' : 'text-slate-500'
+                    selectedRange?.to ? 'text-slate-900' : 'text-slate-400'
                   }`}
                 >
                   {endLabel}
@@ -236,16 +268,16 @@ export function DatePickerInput({
               caption: 'flex justify-center relative items-center',
               caption_dropdowns: 'flex items-center justify-center gap-4',
               caption_label:
-                'text-lg font-semibold text-slate-100 inline-flex items-center gap-2',
+                'text-lg font-semibold text-slate-900 inline-flex items-center gap-2',
               dropdown_month: 'relative',
               dropdown_year: 'relative',
               dropdown:
                 'absolute inset-0 w-full h-full opacity-0 cursor-pointer text-slate-900 bg-white',
-              dropdown_icon: 'text-slate-400',
+              dropdown_icon: 'text-slate-500',
               vhidden: 'hidden',
               nav: 'flex items-center gap-1',
               nav_button:
-                'h-7 w-7 rounded-full text-slate-400 hover:text-slate-200 hover:bg-slate-800',
+                'h-7 w-7 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100',
               nav_button_previous: 'absolute left-1',
               nav_button_next: 'absolute right-1',
               table: 'w-full border-collapse',
@@ -254,17 +286,16 @@ export function DatePickerInput({
               row: 'flex w-full mt-1',
               cell:
                 'relative flex-1 p-0 flex items-center justify-center text-sm focus-within:relative focus-within:z-20',
-              day: 'h-8 w-8 rounded-full text-slate-200 hover:bg-slate-700 transition-colors',
+              day: 'h-8 w-8 rounded-full text-slate-700 hover:bg-slate-100 transition-colors',
               day_selected:
-                'bg-sky-500 text-white hover:bg-sky-400 focus:bg-sky-500 focus:text-white',
-              day_today: 'text-sky-300',
-              day_outside: 'text-slate-600',
-              day_disabled: 'text-slate-600 opacity-50',
-              day_range_start: 'bg-sky-500 text-white hover:bg-sky-400',
-              day_range_end: 'bg-sky-500 text-white hover:bg-sky-400',
-              day_range_middle: 'aria-selected:bg-slate-700 aria-selected:text-slate-100'
+                'bg-blue-600 text-white hover:bg-blue-500 focus:bg-blue-600 focus:text-white',
+              day_today: 'text-blue-600',
+              day_outside: 'text-slate-300',
+              day_disabled: 'text-slate-300 opacity-50',
+              day_range_start: 'bg-blue-600 text-white hover:bg-blue-500',
+              day_range_end: 'bg-blue-600 text-white hover:bg-blue-500',
+              day_range_middle: 'aria-selected:bg-blue-50 aria-selected:text-blue-700'
             }}
-            initialFocus
           />
         </PopoverContent>
       </Popover>

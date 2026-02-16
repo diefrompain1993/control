@@ -123,7 +123,7 @@ function AppShell() {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Header user={user} onLogout={handleLogout} />
 
-          <main className="flex-1 overflow-y-auto p-8">
+          <main className="flex-1 overflow-y-scroll p-8">
             <RequireRole roles={ROUTE_CONFIG[activeRouteId].roles}>{renderPage()}</RequireRole>
           </main>
         </div>

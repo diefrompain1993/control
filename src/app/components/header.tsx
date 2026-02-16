@@ -39,7 +39,7 @@ export function Header({ user, onLogout }: HeaderProps) {
         <div className="flex items-center gap-3 pl-4 border-l border-border">
           <div className="flex flex-col">
             <span className="text-base font-semibold text-foreground leading-tight">{displayName}</span>
-            <span className="text-sm text-muted-foreground leading-tight">{roleLabel}</span>
+            <span className="text-sm text-foreground/80 leading-tight">{roleLabel}</span>
           </div>
         </div>
       </div>

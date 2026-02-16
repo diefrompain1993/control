@@ -9,9 +9,9 @@ import { Button } from '@/app/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { useAuth } from '@/auth/authContext';
 import {
-  formatPlateNumber,
-  formatPlateWithRegion,
-  getPlateRegionCode,
+    formatPlateNumber,
+  formatPlateWithCountryCode,
+  getPlateCountryCode,
   normalizePlateNumber
 } from '@/app/utils/plate';
 import { BASE_VEHICLES } from '@/app/data/vehicles';
@@ -71,10 +71,8 @@ export function Contractors() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchSuggestionsOpen, setSearchSuggestionsOpen] = useState(false);
-  const [selectedPlate, setSelectedPlate] = useState('');
-  const [selectedOwner, setSelectedOwner] = useState('');
-  const [selectedPlateRowId, setSelectedPlateRowId] = useState<string | null>(null);
-  const [selectedOwnerRowId, setSelectedOwnerRowId] = useState<string | null>(null);
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [rowChipClosingIds, setRowChipClosingIds] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState('');
   const [dateSort, setDateSort] = useState<'asc' | 'desc'>('desc');
   const [isLoading] = useState(false);
@@ -95,6 +93,8 @@ export function Contractors() {
   const [errors, setErrors] = useState<{
     owner?: string;
     plateNumber?: string;
+    region?: string;
+    country?: string;
     category?: string;
   }>({});
   const [countrySuggestionsOpen, setCountrySuggestionsOpen] = useState(false);
@@ -112,6 +112,16 @@ export function Contractors() {
     () => vehicles.filter((vehicle) => vehicle.category === DEFAULT_CATEGORY),
     [vehicles]
   );
+
+  const plateCountryMap = useMemo(() => {
+    const map = new Map<string, string>();
+    categoryVehicles.forEach((vehicle) => {
+      if (!map.has(vehicle.plateNumber) && vehicle.country) {
+        map.set(vehicle.plateNumber, vehicle.country);
+      }
+    });
+    return map;
+  }, [categoryVehicles]);
 
   const plateSuggestions = useMemo(() => {
     const query = searchQuery.trim();
@@ -161,9 +171,21 @@ export function Contractors() {
     return Array.from(unique, ([label, value]) => ({ label, value })).slice(0, 6);
   }, [categoryVehicles, searchQuery]);
 
-  const selectedOwnerLabel = selectedOwner ? getOwnerShortLabel(selectedOwner) : '';
-  const selectedPlateLabel = selectedPlate ? formatPlateNumber(selectedPlate) : '';
-  const canViewEntries = Boolean(selectedPlate && selectedOwner);
+  const selectedVehicles = useMemo(
+    () =>
+      selectedRowIds
+        .map((id) => vehicles.find((vehicle) => vehicle.id === id))
+        .filter((vehicle): vehicle is StoredVehicle => Boolean(vehicle)),
+    [vehicles, selectedRowIds]
+  );
+  const selectedPlateSet = useMemo(
+    () => new Set(selectedVehicles.map((vehicle) => vehicle.plateNumber)),
+    [selectedVehicles]
+  );
+  const selectedOwnerSet = useMemo(
+    () => new Set(selectedVehicles.map((vehicle) => vehicle.owner)),
+    [selectedVehicles]
+  );
   const filteredCountries = useMemo(() => {
     const query = form.country.trim().toLowerCase();
     if (!query) return PLATE_COUNTRY_OPTIONS;
@@ -174,29 +196,23 @@ export function Contractors() {
     );
   }, [form.country]);
 
-  const handleSelectPlate = (plate: string, rowId?: string) => {
-    const isSameRow = rowId ? selectedPlateRowId === rowId : selectedPlate === plate;
-    const nextPlate = isSameRow ? '' : plate;
-    setSelectedPlate(nextPlate);
-    setSelectedPlateRowId(isSameRow ? null : rowId ?? null);
+  const handleSelectRow = (vehicle: StoredVehicle) => {
+    if (selectedRowIds.includes(vehicle.id)) {
+      handleRemoveRowChip(vehicle.id);
+      return;
+    }
+    setSelectedRowIds((prev) => [...prev, vehicle.id]);
   };
-
-  const handleSelectOwner = (owner: string, rowId?: string) => {
-    const isSameRow = rowId ? selectedOwnerRowId === rowId : selectedOwner === owner;
-    const nextOwner = isSameRow ? '' : owner;
-    setSelectedOwner(nextOwner);
-    setSelectedOwnerRowId(isSameRow ? null : rowId ?? null);
-  };
-
-  const handleViewEntries = () => {
-    if (!canViewEntries) return;
-    const params = new URLSearchParams();
-    params.set('plate', selectedPlate);
-    params.set('owner', selectedOwner);
-    params.set('status', 'Подрядчик');
-    const url = `${getRoutePath('events')}?${params.toString()}`;
-    window.history.pushState({}, '', url);
-    window.dispatchEvent(new PopStateEvent('popstate'));
+  const handleRemoveRowChip = (vehicleId: string) => {
+    if (rowChipClosingIds.includes(vehicleId)) return;
+    setRowChipClosingIds((prev) => {
+      if (prev.includes(vehicleId)) return prev;
+      return [...prev, vehicleId];
+    });
+    window.setTimeout(() => {
+      setSelectedRowIds((prev) => prev.filter((id) => id !== vehicleId));
+      setRowChipClosingIds((prev) => prev.filter((id) => id !== vehicleId));
+    }, 220);
   };
 
   const filteredData = useMemo(() => {
@@ -245,14 +261,49 @@ export function Contractors() {
     return next;
   }, [filteredData, dateSort]);
 
+  const hasSearchMatches = searchQuery.trim() !== '' && filteredData.length > 0;
+  const canViewEntries = selectedRowIds.length > 0 || hasSearchMatches;
+  const hasSelectedChips = selectedVehicles.length > 0;
+
+  const resolveSearchParams = () => {
+    const query = searchQuery.trim();
+    if (!query) return null;
+    const normalized = normalizePlateNumber(query);
+    const looksLikePlate = normalized.length >= 4 && /\d/.test(normalized);
+    return looksLikePlate ? { plate: query } : { owner: query };
+  };
+
+  const handleViewEntries = () => {
+    if (!canViewEntries) return;
+    const params = new URLSearchParams();
+    if (selectedRowIds.length > 0 && selectedVehicles.length > 0) {
+      if (selectedVehicles.length === 1) {
+        params.set('plate', selectedVehicles[0].plateNumber);
+        params.set('owner', selectedVehicles[0].owner);
+      } else {
+        params.set(
+          'plates',
+          selectedVehicles.map((vehicle) => vehicle.plateNumber).join(',')
+        );
+      }
+    } else {
+      const resolved = resolveSearchParams();
+      if (!resolved) return;
+      if (resolved.plate) params.set('plate', resolved.plate);
+      if (resolved.owner) params.set('owner', resolved.owner);
+    }
+    params.set('status', 'Подрядчик');
+    const url = `${getRoutePath('events')}?${params.toString()}`;
+    window.history.pushState({}, '', url);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   const handleResetFilters = () => {
     setSearchQuery('');
     setDateFilter('');
     setDateSort('desc');
-    setSelectedPlate('');
-    setSelectedOwner('');
-    setSelectedPlateRowId(null);
-    setSelectedOwnerRowId(null);
+    setSelectedRowIds([]);
+    setRowChipClosingIds([]);
   };
 
   const resetForm = () => {
@@ -326,11 +377,16 @@ export function Contractors() {
 
   const handleSave = () => {
     const trimmedOwner = form.owner.trim();
+    const ownerValue =
+      trimmedOwner.split(/\s+/).length >= 2 && !isOrganizationName(trimmedOwner)
+        ? getNameWithInitials(trimmedOwner, trimmedOwner)
+        : trimmedOwner;
     const normalizedPlate = normalizePlateNumber(form.plateNumber);
     const trimmedRegion = form.region.trim();
     const trimmedCountry = form.country.trim();
-    const regionValue = trimmedRegion || undefined;
-    const countryValue = trimmedCountry || undefined;
+    const regionValue = trimmedRegion;
+    const countryValue = trimmedCountry;
+    const plateNumberValue = form.plateNumber.trim();
     const formatValue = (value?: string) => (value ? value : '—');
     const nextErrors: typeof errors = {};
 
@@ -340,6 +396,18 @@ export function Contractors() {
 
     if (!normalizedPlate) {
       nextErrors.plateNumber = 'Введите номер автомобиля.';
+    }
+
+    if (!trimmedRegion) {
+      nextErrors.region = 'Введите регион.';
+    }
+
+    if (!trimmedCountry) {
+      nextErrors.country = 'Укажите страну.';
+    }
+
+    if (trimmedCountry && /\d/.test(trimmedCountry)) {
+      nextErrors.country = 'Страна должна содержать только буквы.';
     }
 
     if (!form.category) {
@@ -361,8 +429,8 @@ export function Contractors() {
       const detailsParts: string[] = [];
       const listChanged = selectedCategory !== editingVehicle.category;
       const hasChanges =
-        trimmedOwner !== editingVehicle.owner ||
-        normalizedPlate !== editingVehicle.plateNumber ||
+        ownerValue !== editingVehicle.owner ||
+        plateNumberValue !== editingVehicle.plateNumber ||
         (regionValue ?? '') !== (editingVehicle.region ?? '') ||
         (countryValue ?? '') !== (editingVehicle.country ?? '') ||
         nextNotes !== existingNotes ||
@@ -378,14 +446,19 @@ export function Contractors() {
       const timestamp = getCurrentTimestamp();
       const creatorName = getNameWithInitials(user?.fullName, '—');
 
-      if (trimmedOwner !== editingVehicle.owner) {
+      if (ownerValue !== editingVehicle.owner) {
         changes.push('наименование');
-        detailsParts.push(`Наименование: ${editingVehicle.owner} → ${trimmedOwner}`);
+        detailsParts.push(`Наименование: ${editingVehicle.owner} → ${ownerValue}`);
       }
 
-      if (normalizedPlate !== editingVehicle.plateNumber) {
+      if (plateNumberValue !== editingVehicle.plateNumber) {
         changes.push('номер');
-        detailsParts.push(`Номер: ${editingVehicle.plateNumber} → ${normalizedPlate}`);
+        detailsParts.push(
+          `Номер: ${formatPlateWithCountryCode(
+            editingVehicle.plateNumber,
+            editingVehicle.country
+          )} → ${formatPlateWithCountryCode(plateNumberValue, countryValue)}`
+        );
       }
 
       if ((regionValue ?? '') !== (editingVehicle.region ?? '')) {
@@ -427,8 +500,8 @@ export function Contractors() {
 
       updateVehicleById({
         ...editingVehicle,
-        owner: trimmedOwner,
-        plateNumber: normalizedPlate,
+        owner: ownerValue,
+        plateNumber: plateNumberValue,
         region: regionValue,
         country: countryValue,
         notes: notesValue,
@@ -439,7 +512,7 @@ export function Contractors() {
         timestamp,
         user: creatorName,
         action,
-        target: formatPlateWithRegion(normalizedPlate),
+        target: formatPlateWithCountryCode(plateNumberValue, countryValue),
         details: detailsParts.join(' · ')
       });
     } else {
@@ -447,8 +520,8 @@ export function Contractors() {
       const creatorName = getNameWithInitials(user?.fullName, '—');
 
       addStoredVehicle(selectedCategory, {
-        owner: trimmedOwner,
-        plateNumber: normalizedPlate,
+        owner: ownerValue,
+        plateNumber: plateNumberValue,
         region: regionValue,
         country: countryValue,
         notes: notesValue
@@ -458,8 +531,8 @@ export function Contractors() {
         timestamp,
         user: creatorName,
         action: 'Добавлен автомобиль',
-        target: formatPlateWithRegion(normalizedPlate),
-        details: `Список: ${categoryAuditLabels[selectedCategory]} · Владелец: ${trimmedOwner} · Регион: ${formatValue(
+        target: formatPlateWithCountryCode(plateNumberValue, countryValue),
+        details: `Номер: ${formatPlateWithCountryCode(plateNumberValue, countryValue)} · Список: ${categoryAuditLabels[selectedCategory]} · Владелец: ${ownerValue} · Регион: ${formatValue(
           regionValue
         )} · Страна: ${formatValue(countryValue)}`
       });
@@ -480,7 +553,7 @@ export function Contractors() {
       timestamp,
       user: creatorName,
       action: 'Удален автомобиль',
-      target: formatPlateWithRegion(vehicle.plateNumber),
+      target: formatPlateWithCountryCode(vehicle.plateNumber, vehicle.country),
       details: `Список: ${categoryAuditLabels[vehicle.category]} · Владелец: ${vehicle.owner}`
     });
 
@@ -553,7 +626,7 @@ export function Contractors() {
 
                     <div>
                       <Input
-                        label="Номер"
+                        label="Номер автомобиля"
                         value={form.plateNumber}
                         onChange={(value) => {
                           setForm((prev) => ({ ...prev, plateNumber: value }));
@@ -568,47 +641,63 @@ export function Contractors() {
                       )}
                     </div>
 
-                    <div>
-                      <Input
-                        label="Регион"
-                        value={form.region}
-                        onChange={(value) => setForm((prev) => ({ ...prev, region: value }))}
-                        placeholder="77"
-                      />
-                    </div>
-
-                    <div className="relative">
-                      <Input
-                        label="Страна"
-                        value={form.country}
-                        onChange={(value) => {
-                          setForm((prev) => ({ ...prev, country: value }));
-                          setCountrySuggestionsOpen(true);
-                        }}
-                        onFocus={() => setCountrySuggestionsOpen(true)}
-                        onBlur={() => {
-                          window.setTimeout(() => setCountrySuggestionsOpen(false), 120);
-                        }}
-                        placeholder="Россия (RUS)"
-                      />
-                      {countrySuggestionsOpen && filteredCountries.length > 0 && (
-                        <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-300 rounded text-sm shadow-lg z-20 overflow-hidden">
-                          {filteredCountries.map((option) => (
-                            <button
-                              key={option.value}
-                              type="button"
-                              className="w-full text-left px-3 py-2 transition-colors hover:bg-blue-50"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => {
-                                setForm((prev) => ({ ...prev, country: option.label }));
-                                setCountrySuggestionsOpen(false);
-                              }}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <Input
+                          label="Регион"
+                          value={form.region}
+                          onChange={(value) => {
+                            setForm((prev) => ({ ...prev, region: value }));
+                            if (errors.region) {
+                              setErrors((prev) => ({ ...prev, region: undefined }));
+                            }
+                          }}
+                          placeholder="777"
+                        />
+                        {errors.region && (
+                          <p className="mt-1 text-xs text-red-600">{errors.region}</p>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <Input
+                          label="Страна"
+                          value={form.country}
+                          onChange={(value) => {
+                            setForm((prev) => ({ ...prev, country: value }));
+                            if (errors.country) {
+                              setErrors((prev) => ({ ...prev, country: undefined }));
+                            }
+                            setCountrySuggestionsOpen(value.trim().length > 0);
+                          }}
+                          placeholder="Россия (RUS)"
+                        />
+                        {countrySuggestionsOpen &&
+                          form.country.trim() !== '' &&
+                          filteredCountries.length > 0 && (
+                            <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-300 rounded text-sm shadow-lg z-20 max-h-44 overflow-y-auto">
+                              {filteredCountries.map((option) => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 transition-colors hover:bg-blue-50"
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => {
+                                    setForm((prev) => ({ ...prev, country: option.label }));
+                                    if (errors.country) {
+                                      setErrors((prev) => ({ ...prev, country: undefined }));
+                                    }
+                                    setCountrySuggestionsOpen(false);
+                                  }}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        {errors.country && (
+                          <p className="mt-1 text-xs text-red-600">{errors.country}</p>
+                        )}
+                      </div>
                     </div>
 
                     <div>
@@ -664,10 +753,7 @@ export function Contractors() {
                 onChange={(value) => {
                   setSearchQuery(value);
                   setSearchSuggestionsOpen(value.trim().length > 0);
-                  setSelectedPlate('');
-                  setSelectedOwner('');
-                  setSelectedPlateRowId(null);
-                  setSelectedOwnerRowId(null);
+                  setSelectedRowIds([]);
                 }}
                 onFocus={() => {
                   if (searchQuery.trim()) {
@@ -679,6 +765,7 @@ export function Contractors() {
                 }}
                 placeholder="Введите номер или название организации"
                 icon={<Search className="w-4 h-4" />}
+                className="h-[36px]"
               />
               {searchSuggestionsOpen &&
                 searchQuery.trim() !== '' &&
@@ -690,7 +777,7 @@ export function Contractors() {
                       </div>
                     )}
                     {plateSuggestions.map((plate) => {
-                      const isSelected = selectedPlate === plate;
+                      const isSelected = selectedPlateSet.has(plate);
                       return (
                         <button
                           key={plate}
@@ -704,13 +791,10 @@ export function Contractors() {
                           onClick={() => {
                             setSearchQuery(formatPlateNumber(plate));
                             setSearchSuggestionsOpen(false);
-                            setSelectedPlate('');
-                            setSelectedOwner('');
-                            setSelectedPlateRowId(null);
-                            setSelectedOwnerRowId(null);
+                            setSelectedRowIds([]);
                           }}
                         >
-                          {formatPlateNumber(plate)} ({getPlateRegionCode(plate)})
+                          {formatPlateNumber(plate)} ({getPlateCountryCode(plate, plateCountryMap.get(plate))})
                         </button>
                       );
                     })}
@@ -720,7 +804,7 @@ export function Contractors() {
                       </div>
                     )}
                     {ownerSuggestions.map((owner) => {
-                      const isSelected = selectedOwner === owner.value;
+                      const isSelected = selectedOwnerSet.has(owner.value);
                       return (
                         <button
                           key={owner.value}
@@ -734,10 +818,7 @@ export function Contractors() {
                           onClick={() => {
                             setSearchQuery(owner.label);
                             setSearchSuggestionsOpen(false);
-                            setSelectedPlate('');
-                            setSelectedOwner('');
-                            setSelectedPlateRowId(null);
-                            setSelectedOwnerRowId(null);
+                            setSelectedRowIds([]);
                           }}
                         >
                           {owner.label}
@@ -754,11 +835,19 @@ export function Contractors() {
               value={dateFilter}
               onChange={(value) => setDateFilter(formatDateInput(value))}
               placeholder="ДД.ММ.ГГГГ"
+              className="h-[36px]"
             />
           </div>
           <div className="flex items-end gap-2">
-            <Button type="submit">Найти</Button>
-            <Button type="button" variant="destructive" onClick={handleResetFilters}>
+            <Button type="submit" className="h-[36px] px-4">
+              Найти
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleResetFilters}
+              className="h-[36px] px-4"
+            >
               Сбросить
             </Button>
           </div>
@@ -771,6 +860,7 @@ export function Contractors() {
                     variant="secondary"
                     onClick={handleViewEntries}
                     disabled={!canViewEntries}
+                    className="h-[36px] px-4"
                   >
                     Посмотреть въезды
                   </Button>
@@ -784,36 +874,33 @@ export function Contractors() {
             </Tooltip>
           </div>
         </form>
-        {(selectedPlate || selectedOwner) && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            {selectedPlate && (
+        <div
+          className={`flex flex-wrap items-center gap-2 text-xs text-muted-foreground transition-[max-height,opacity,transform,margin] duration-[240ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] will-change-[max-height,opacity,transform] ${
+            hasSelectedChips
+              ? 'mt-3 max-h-24 opacity-100 translate-y-0'
+              : 'mt-0 max-h-0 opacity-0 -translate-y-1 pointer-events-none'
+          }`}
+          style={{ overflow: 'hidden' }}
+        >
+          {selectedVehicles.map((vehicle) => {
+            const isClosing = rowChipClosingIds.includes(vehicle.id);
+            return (
               <button
+                key={vehicle.id}
                 type="button"
-                onClick={() => {
-                  setSelectedPlate('');
-                  setSelectedPlateRowId(null);
-                }}
-                className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-blue-700"
+                onClick={() => handleRemoveRowChip(vehicle.id)}
+                className={`inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-blue-700 transition-[opacity,transform] duration-[220ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] will-change-[opacity,transform] ${
+                  isClosing
+                    ? 'opacity-0 -translate-y-1 scale-95'
+                    : 'opacity-100 translate-y-0 scale-100'
+                }`}
               >
-                Номер: {selectedPlateLabel}
-                <span className="text-[10px] leading-none">×</span>
+                {formatPlateNumber(vehicle.plateNumber)} · {getOwnerShortLabel(vehicle.owner)}
+                <span className="text-[14px] leading-none font-semibold">×</span>
               </button>
-            )}
-            {selectedOwner && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedOwner('');
-                  setSelectedOwnerRowId(null);
-                }}
-                className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-gray-700"
-              >
-                Владелец: {selectedOwnerLabel}
-                <span className="text-[10px] leading-none">×</span>
-              </button>
-            )}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </FilterBar>
 
       <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
@@ -888,41 +975,28 @@ export function Contractors() {
                 ))
               ) : sortedData.length > 0 ? (
                 sortedData.map((vehicle) => {
-                  const isPlateSelected = selectedPlateRowId === vehicle.id;
-                  const isOwnerSelected = selectedOwnerRowId === vehicle.id;
-                  const isSelectedRow = isPlateSelected || isOwnerSelected;
+                  const isSelectedRow = selectedRowIds.includes(vehicle.id);
 
                   return (
                     <tr
                       key={vehicle.id}
-                      className={`border-b border-border/50 ${
+                      onClick={() => handleSelectRow(vehicle)}
+                      className={`border-b border-border/50 cursor-pointer ${
                         isSelectedRow ? 'bg-slate-200' : 'transition-smooth hover:bg-muted/30'
                       }`}
                     >
                     <td className="py-4 px-6 text-center text-purple-600 plate-text">
-                      <button
-                        type="button"
-                        onClick={() => handleSelectPlate(vehicle.plateNumber, vehicle.id)}
-                        className={`inline-flex items-center justify-center gap-2 rounded-lg px-[3px] py-1 ${
-                          isPlateSelected ? 'bg-slate-300 text-foreground' : 'transition-colors hover:bg-muted/40'
-                        }`}
-                      >
+                      <span className="inline-flex items-center justify-center gap-2">
                         {formatPlateNumber(vehicle.plateNumber)}
                         <span className="text-[11px] text-muted-foreground font-semibold">
-                          ({getPlateRegionCode(vehicle.plateNumber)})
+                          ({getPlateCountryCode(vehicle.plateNumber, vehicle.country)})
                         </span>
-                      </button>
+                      </span>
                     </td>
                     <td className="py-4 px-6 text-center text-[14px] text-foreground/80">
-                      <button
-                        type="button"
-                        onClick={() => handleSelectOwner(vehicle.owner, vehicle.id)}
-                        className={`inline-flex items-center justify-center rounded-lg px-[3px] py-1 ${
-                          isOwnerSelected ? 'bg-slate-300 text-foreground' : 'transition-colors hover:bg-muted/40'
-                        }`}
-                      >
+                      <span className="inline-flex items-center justify-center">
                         {vehicle.owner}
-                      </button>
+                      </span>
                     </td>
                     <td className="py-4 px-6 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
                       {vehicle.addedDate}
@@ -935,7 +1009,10 @@ export function Contractors() {
                         <div className="relative flex items-center justify-center gap-3">
                           <button
                             type="button"
-                            onClick={() => openEditDialog(vehicle)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openEditDialog(vehicle);
+                            }}
                             className="text-blue-400 transition-colors hover:text-blue-500"
                             aria-label="Редактировать"
                           >
@@ -943,7 +1020,10 @@ export function Contractors() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteRequest(vehicle)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDeleteRequest(vehicle);
+                            }}
                             className="text-red-400 transition-colors hover:text-red-500"
                             aria-label="Удалить"
                           >
@@ -1003,7 +1083,10 @@ export function Contractors() {
             <DialogTitle>Удалить автомобиль?</DialogTitle>
             <DialogDescription className="text-foreground font-medium">
               {vehicleToDelete
-                ? `Номер: ${formatPlateNumber(vehicleToDelete.plateNumber)} (${getPlateRegionCode(vehicleToDelete.plateNumber)}). Это действие нельзя отменить.`
+                ? `Номер: ${formatPlateNumber(vehicleToDelete.plateNumber)} (${getPlateCountryCode(
+                    vehicleToDelete.plateNumber,
+                    vehicleToDelete.country
+                  )}). Это действие нельзя отменить.`
                 : 'Это действие нельзя отменить.'}
             </DialogDescription>
           </DialogHeader>

@@ -2,6 +2,7 @@
   { value: 'RUS', label: 'Россия (RUS)' },
   { value: 'BY', label: 'Беларусь (BY)' },
   { value: 'KZ', label: 'Казахстан (KZ)' },
+  { value: 'UA', label: 'Украина (UA)' },
   { value: 'AM', label: 'Армения (AM)' },
   { value: 'AZ', label: 'Азербайджан (AZ)' },
   { value: 'KG', label: 'Кыргызстан (KG)' },

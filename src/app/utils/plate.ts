@@ -70,6 +70,7 @@ const PLATE_COUNTRY_PREFIX = new RegExp(
   `^(${PLATE_COUNTRY_CODES.join('|')})[\\s-]*`,
   'i'
 );
+const PLATE_COUNTRY_CODE_RE = new RegExp(`\\b(${PLATE_COUNTRY_CODES.join('|')})\\b`, 'i');
 
 const PLATE_LETTERS = 'A-Z\u0410\u0412\u0415\u041a\u041c\u041d\u041e\u0420\u0421\u0422\u0423\u0425';
 const PLATE_LETTER_CLASS = `[${PLATE_LETTERS}]`;
@@ -78,13 +79,63 @@ const platePatterns: Array<{ code: PlateCountryCode; re: RegExp }> = [
   { code: 'UA', re: new RegExp(`^${PLATE_LETTER_CLASS}{2}\\d{4}${PLATE_LETTER_CLASS}{2}$`) },
   { code: 'BY', re: new RegExp(`^\\d{4}${PLATE_LETTER_CLASS}{2}\\d$`) },
   { code: 'KZ', re: new RegExp(`^\\d{3}${PLATE_LETTER_CLASS}{3}\\d{2}$`) },
+  { code: 'AZ', re: new RegExp(`^\\d{2,3}${PLATE_LETTER_CLASS}{2}\\d{3}$`) },
+  { code: 'KG', re: new RegExp(`^\\d{2}\\d{3}${PLATE_LETTER_CLASS}{3}$`) },
+  { code: 'UZ', re: new RegExp(`^\\d{2}${PLATE_LETTER_CLASS}\\d{3}${PLATE_LETTER_CLASS}{2}$`) },
+  { code: 'UZ', re: new RegExp(`^\\d{2}\\d{3}${PLATE_LETTER_CLASS}{3}$`) },
+  { code: 'AM', re: new RegExp(`^\\d{2}${PLATE_LETTER_CLASS}{2}\\d{3}$`) },
+  { code: 'AM', re: new RegExp(`^\\d{3}${PLATE_LETTER_CLASS}{2}\\d{2}$`) },
+  { code: 'TJ', re: new RegExp(`^\\d{4}${PLATE_LETTER_CLASS}{2}\\d{2}$`) },
+  { code: 'MD', re: new RegExp(`^${PLATE_LETTER_CLASS}{3}\\d{3}$`) },
   { code: 'RUS', re: new RegExp(`^${PLATE_LETTER_CLASS}\\d{3}${PLATE_LETTER_CLASS}{2}\\d{0,3}$`) }
 ];
 
 const BY_FORMAT_RE = new RegExp(`^(\\d{4})(${PLATE_LETTER_CLASS}{2})(\\d)$`);
 const KZ_FORMAT_RE = new RegExp(`^(\\d{3})(${PLATE_LETTER_CLASS}{3})(\\d{2})$`);
+const RUS_FORMAT_RE = new RegExp(
+  `^(${PLATE_LETTER_CLASS})(\\d{3})(${PLATE_LETTER_CLASS}{2})(\\d{2,3})$`
+);
+const UA_FORMAT_RE = new RegExp(
+  `^(${PLATE_LETTER_CLASS}{2})(\\d{4})(${PLATE_LETTER_CLASS}{2})$`
+);
+const AZ_FORMAT_RE = new RegExp(`^(\\d{2,3})(${PLATE_LETTER_CLASS}{2})(\\d{3})$`);
+const KG_FORMAT_RE = new RegExp(`^(\\d{2})(\\d{3})(${PLATE_LETTER_CLASS}{3})$`);
+const MD_FORMAT_RE = new RegExp(`^(${PLATE_LETTER_CLASS}{3})(\\d{3})$`);
+const AM_FORMAT_RE = new RegExp(`^(\\d{2})(${PLATE_LETTER_CLASS}{2})(\\d{3})$`);
+const AM_ALT_FORMAT_RE = new RegExp(`^(\\d{3})(${PLATE_LETTER_CLASS}{2})(\\d{2})$`);
+const TJ_FORMAT_RE = new RegExp(`^(\\d{4})(${PLATE_LETTER_CLASS}{2})(\\d{2})$`);
+const TM_FORMAT_RE = new RegExp(
+  `^(${PLATE_LETTER_CLASS}{2})(\\d{4})(${PLATE_LETTER_CLASS}{2})$`
+);
+const UZ_FORMAT_RE = new RegExp(
+  `^(\\d{2})(${PLATE_LETTER_CLASS})(\\d{3})(${PLATE_LETTER_CLASS}{2})$`
+);
+const UZ_ALT_FORMAT_RE = new RegExp(`^(\\d{2})(\\d{3})(${PLATE_LETTER_CLASS}{3})$`);
 
 const stripPlateCountryPrefix = (value: string) => value.replace(PLATE_COUNTRY_PREFIX, '');
+const sanitizePlateValue = (value: string) =>
+  normalizePlateNumber(stripPlateCountryPrefix(value)).replace(/[^A-Z\u0410-\u042f0-9]/g, '');
+
+const extractPlateCountryCode = (value?: string) => {
+  if (!value) return null;
+  const match = value.match(PLATE_COUNTRY_CODE_RE);
+  return match ? (match[1].toUpperCase() as PlateCountryCode) : null;
+};
+
+const normalizeRegionValue = (value?: string) =>
+  normalizePlateNumber(value ?? '').replace(/[^A-Z\u0410-\u042f0-9]/g, '');
+
+const getRegionDigits = (value: string, length?: number) => {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  return length ? digits.slice(0, length) : digits;
+};
+
+const getRegionLetters = (value: string, length?: number) => {
+  const letters = value.replace(/[^A-Z\u0410-\u042f]/g, '');
+  if (!letters) return '';
+  return length ? letters.slice(0, length) : letters;
+};
 
 const formatByCountry = (normalized: string, code: PlateCountryCode) => {
   switch (code) {
@@ -92,25 +143,171 @@ const formatByCountry = (normalized: string, code: PlateCountryCode) => {
       return normalized.replace(BY_FORMAT_RE, '$1 $2-$3');
     case 'KZ':
       return normalized.replace(KZ_FORMAT_RE, '$1 $2 $3');
+    case 'RUS':
+      return normalized.replace(RUS_FORMAT_RE, '$1$2$3 $4');
+    case 'UA':
+      return normalized.replace(UA_FORMAT_RE, '$1 $2 $3');
+    case 'AZ':
+      return normalized.replace(
+        AZ_FORMAT_RE,
+        (_, region: string, letters: string, digits: string) =>
+          region.length === 2 ? `${region}-${letters}-${digits}` : `${region} ${letters} ${digits}`
+      );
+    case 'KG':
+      return normalized.replace(KG_FORMAT_RE, '$1 $2$3');
+    case 'MD':
+      return normalized.replace(MD_FORMAT_RE, '$1 $2');
+    case 'AM': {
+      const primary = normalized.replace(AM_FORMAT_RE, '$1 $2 $3');
+      return primary !== normalized ? primary : normalized.replace(AM_ALT_FORMAT_RE, '$1 $2 $3');
+    }
+    case 'TJ':
+      return normalized.replace(TJ_FORMAT_RE, '$1 $2 $3');
+    case 'TM':
+      return normalized.replace(TM_FORMAT_RE, '$1 $2 $3');
+    case 'UZ': {
+      const primary = normalized.replace(UZ_FORMAT_RE, '$1 $2$3$4');
+      return primary !== normalized ? primary : normalized.replace(UZ_ALT_FORMAT_RE, '$1 $2$3');
+    }
+    default:
+      return normalized;
+  }
+};
+
+export const buildPlateNumber = (plate: string, region?: string, country?: string) => {
+  const normalized = sanitizePlateValue(plate);
+  if (!normalized) return '';
+  const regionValue = normalizeRegionValue(region);
+  const countryCode = extractPlateCountryCode(country) ?? getPlateCountryInfo(normalized).code;
+
+  switch (countryCode) {
+    case 'RUS': {
+      const match = normalized.match(
+        new RegExp(`^(${PLATE_LETTER_CLASS}\\d{3}${PLATE_LETTER_CLASS}{2})(\\d{2,3})?$`)
+      );
+      const base = match?.[1] ?? normalized;
+      const existingRegion = match?.[2] ?? '';
+      const nextRegion = getRegionDigits(regionValue, 3) || existingRegion;
+      return nextRegion ? `${base}${nextRegion}` : base;
+    }
+    case 'BY': {
+      const match = normalized.match(
+        new RegExp(`^(\\d{4}${PLATE_LETTER_CLASS}{2})(\\d)?$`)
+      );
+      const base = match?.[1] ?? normalized;
+      const existingRegion = match?.[2] ?? '';
+      const nextRegion = getRegionDigits(regionValue, 1) || existingRegion;
+      return nextRegion ? `${base}${nextRegion}` : base;
+    }
+    case 'KZ': {
+      const match = normalized.match(
+        new RegExp(`^(\\d{3}${PLATE_LETTER_CLASS}{3})(\\d{2})?$`)
+      );
+      const base = match?.[1] ?? normalized;
+      const existingRegion = match?.[2] ?? '';
+      const nextRegion = getRegionDigits(regionValue, 2) || existingRegion;
+      return nextRegion ? `${base}${nextRegion}` : base;
+    }
+    case 'AZ': {
+      const match = normalized.match(
+        new RegExp(`^(\\d{2,3})(${PLATE_LETTER_CLASS}{2}\\d{3})$`)
+      );
+      const base = match?.[2] ?? normalized.replace(/^\d{2,3}/, '');
+      const existingRegion = match?.[1] ?? '';
+      const nextRegion = getRegionDigits(regionValue, 3) || existingRegion;
+      return nextRegion ? `${nextRegion}${base}` : normalized;
+    }
+    case 'KG': {
+      const match = normalized.match(
+        new RegExp(`^(\\d{2})(\\d{3}${PLATE_LETTER_CLASS}{3})$`)
+      );
+      const base = match?.[2] ?? normalized.replace(/^\d{2}/, '');
+      const existingRegion = match?.[1] ?? '';
+      const nextRegion = getRegionDigits(regionValue, 2) || existingRegion;
+      return nextRegion ? `${nextRegion}${base}` : normalized;
+    }
+    case 'UZ': {
+      const primaryMatch = normalized.match(
+        new RegExp(`^(\\d{2})(${PLATE_LETTER_CLASS}\\d{3}${PLATE_LETTER_CLASS}{2})$`)
+      );
+      const secondaryMatch = normalized.match(
+        new RegExp(`^(\\d{2})(\\d{3}${PLATE_LETTER_CLASS}{3})$`)
+      );
+      const base =
+        primaryMatch?.[2] ?? secondaryMatch?.[2] ?? normalized.replace(/^\d{2}/, '');
+      const existingRegion = primaryMatch?.[1] ?? secondaryMatch?.[1] ?? '';
+      const nextRegion = getRegionDigits(regionValue, 2) || existingRegion;
+      return nextRegion ? `${nextRegion}${base}` : normalized;
+    }
+    case 'UA': {
+      const match = normalized.match(
+        new RegExp(`^(${PLATE_LETTER_CLASS}{2})(\\d{4}${PLATE_LETTER_CLASS}{2})$`)
+      );
+      const base = match?.[2] ?? normalized.replace(new RegExp(`^${PLATE_LETTER_CLASS}{2}`), '');
+      const existingRegion = match?.[1] ?? '';
+      const nextRegion = getRegionLetters(regionValue, 2) || existingRegion;
+      return nextRegion ? `${nextRegion}${base}` : normalized;
+    }
+    case 'TM': {
+      const match = normalized.match(
+        new RegExp(`^(${PLATE_LETTER_CLASS}{2})(\\d{4}${PLATE_LETTER_CLASS}{2})$`)
+      );
+      const base = match?.[2] ?? normalized.replace(new RegExp(`^${PLATE_LETTER_CLASS}{2}`), '');
+      const existingRegion = match?.[1] ?? '';
+      const nextRegion = getRegionLetters(regionValue, 2) || existingRegion;
+      return nextRegion ? `${nextRegion}${base}` : normalized;
+    }
+    case 'AM': {
+      const match = normalized.match(
+        new RegExp(`^(\\d{2})(${PLATE_LETTER_CLASS}{2}\\d{3})$`)
+      );
+      const base = match?.[2] ?? normalized.replace(/^\d{2}/, '');
+      const existingRegion = match?.[1] ?? '';
+      const nextRegion = getRegionDigits(regionValue, 2) || existingRegion;
+      return nextRegion ? `${nextRegion}${base}` : normalized;
+    }
+    case 'TJ': {
+      const match = normalized.match(
+        new RegExp(`^(\\d{4}${PLATE_LETTER_CLASS}{2})(\\d{2})?$`)
+      );
+      const base = match?.[1] ?? normalized;
+      const existingRegion = match?.[2] ?? '';
+      const nextRegion = getRegionDigits(regionValue, 2) || existingRegion;
+      return nextRegion ? `${base}${nextRegion}` : base;
+    }
+    case 'MD':
+      return normalized;
     default:
       return normalized;
   }
 };
 
 export const formatPlateNumber = (value: string) => {
-  const stripped = stripPlateCountryPrefix(value);
-  const normalized = normalizePlateNumber(stripped);
-  const info = getPlateCountryInfo(normalized);
+  const normalized = sanitizePlateValue(value);
+  const info = getPlateCountryInfo(value);
   return formatByCountry(normalized, info.code);
 };
 
-export const getPlateRegionCode = (value: string) => {
+export const getPlateCountryCode = (value: string, country?: string) => {
+  const explicitCode = extractPlateCountryCode(country);
+  if (explicitCode) return explicitCode;
   const info = getPlateCountryInfo(value);
-  return info.code === 'UNKNOWN' ? 'CIS' : info.code;
+  return info.code === 'UNKNOWN' ? '—' : info.code;
 };
 
+export const getPlateRegionCode = (value: string) => getPlateCountryCode(value);
+
+export const getPlateRegionLabel = (value: string, country?: string) =>
+  getPlateCountryCode(value, country);
+
+export const formatPlateWithCountryCode = (value: string, country?: string) =>
+  `${formatPlateNumber(value)} (${getPlateCountryCode(value, country)})`;
+
+export const formatPlateWithRegionLabel = (value: string, country?: string) =>
+  formatPlateWithCountryCode(value, country);
+
 export const formatPlateWithRegion = (value: string) =>
-  `${formatPlateNumber(value)} (${getPlateRegionCode(value)})`;
+  formatPlateWithCountryCode(value);
 
 export const getPlateCountryInfo = (value: string) => {
   const trimmed = value.trim();

@@ -12,6 +12,7 @@ interface InputProps {
   max?: string;
   onFocus?: () => void;
   onBlur?: () => void;
+  className?: string;
 }
 
 export function Input({
@@ -27,7 +28,8 @@ export function Input({
   min,
   max,
   onFocus,
-  onBlur
+  onBlur,
+  className
 }: InputProps) {
   return (
     <div>
@@ -52,7 +54,7 @@ export function Input({
           min={min}
           max={max}
           disabled={disabled}
-          className={`w-full ${icon ? 'pl-10' : 'pl-4'} pr-4 py-2 border border-gray-300 rounded text-sm transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50`}
+          className={`w-full ${icon ? 'pl-10' : 'pl-4'} pr-4 py-2 border border-gray-300 rounded text-sm transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
         />
       </div>
     </div>

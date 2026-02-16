@@ -1,9 +1,12 @@
 ﻿import { useMemo, useState } from 'react';
 import { Download, ShieldAlert, ShieldCheck, Table, Users } from 'lucide-react';
 import { PageHeader } from '@/app/components/ui/page-header';
+import { DatePickerInput } from '@/app/components/ui/date-picker-input';
+import { TimePickerInput } from '@/app/components/ui/time-picker-input';
 import { BASE_VEHICLES } from '@/app/data/vehicles';
 import { MOCK_EVENTS } from '@/app/data/events';
 import { getStoredVehicles, mergeVehicles } from '@/app/utils/vehicleStore';
+import { formatDateInput, parseDateRange } from '@/app/utils/dateFilter';
 import { mockUsers } from '@/auth/mockUsers';
 
 const exportOptions = [
@@ -170,6 +173,10 @@ export function ExportData() {
   const [selectedExport, setSelectedExport] = useState<ExportOptionId | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<ExportFormatId | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodOptionId | null>(null);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualDate, setManualDate] = useState('');
+  const [manualTimeFrom, setManualTimeFrom] = useState('');
+  const [manualTimeTo, setManualTimeTo] = useState('');
 
   const vehicles = useMemo(() => {
     const baseVehicles = [
@@ -181,10 +188,54 @@ export function ExportData() {
     return mergeVehicles(baseVehicles, getStoredVehicles());
   }, []);
 
-  const handleExport = () => {
-    if (!selectedExport || !selectedFormat || !selectedPeriod) return;
+  const manualDateParts = useMemo(() => parseDateRange(manualDate), [manualDate]);
 
-    const range = getPeriodRange(selectedPeriod);
+  const manualRange = useMemo(() => {
+    if (!manualMode) return null;
+    const { start, end } = manualDateParts;
+    if (!start || start.length !== 10) return null;
+    if (end && end.length !== 10) return null;
+    const endDate = end && end.length === 10 ? end : start;
+    const timeFrom = manualTimeFrom.trim() || '00:00:00';
+    const timeTo = manualTimeTo.trim() || '23:59:59';
+    const startTimestamp = parseDateTimeToTimestamp(start, timeFrom);
+    const endTimestamp = parseDateTimeToTimestamp(endDate, timeTo);
+    if (startTimestamp <= endTimestamp) {
+      return { start: startTimestamp, end: endTimestamp };
+    }
+    return { start: endTimestamp, end: startTimestamp };
+  }, [manualMode, manualDateParts, manualTimeFrom, manualTimeTo]);
+
+  const manualDateRange = useMemo(() => {
+    if (!manualMode) return null;
+    const { start, end } = manualDateParts;
+    if (!start || start.length !== 10) return null;
+    if (end && end.length !== 10) return null;
+    const endDate = end && end.length === 10 ? end : start;
+    const startTimestamp = parseDateToTimestamp(start);
+    const endTimestamp = parseDateToTimestamp(endDate);
+    if (!startTimestamp || !endTimestamp) return null;
+    const startDay = Math.min(startTimestamp, endTimestamp);
+    const endDay = Math.max(startTimestamp, endTimestamp) + 24 * 60 * 60 * 1000 - 1;
+    return { start: startDay, end: endDay };
+  }, [manualMode, manualDateParts]);
+
+  const effectiveManualRange = useMemo(() => {
+    if (!manualMode) return null;
+    const isDateOnly =
+      selectedExport === 'white' || selectedExport === 'black';
+    return isDateOnly ? manualDateRange : manualRange;
+  }, [manualMode, manualDateRange, manualRange, selectedExport]);
+
+  const handleExport = () => {
+    if (!selectedExport || !selectedFormat || (!selectedPeriod && !effectiveManualRange)) return;
+
+    const range = manualMode
+      ? effectiveManualRange
+      : selectedPeriod
+      ? getPeriodRange(selectedPeriod)
+      : null;
+    if (!range) return;
     let rows: ExportRow[] = [];
     let headers: string[] = [];
     let name = 'export';
@@ -252,14 +303,19 @@ export function ExportData() {
       content = `\ufeff${content}`;
     }
 
-    const periodLabel = periodOptions.find((option) => option.id === selectedPeriod)?.label
-      .replace(/\s+/g, '-')
-      .toLowerCase();
+    const periodLabel = manualMode
+      ? `manual-${manualDate.trim().replace(/\./g, '-') || 'custom'}`
+      : periodOptions
+          .find((option) => option.id === selectedPeriod)
+          ?.label.replace(/\s+/g, '-')
+          .toLowerCase();
     const filename = `${name}-${periodLabel ?? 'all'}.${format.ext}`;
     downloadFile(content, filename, format.mime);
   };
 
-  const canExport = Boolean(selectedExport && selectedFormat && selectedPeriod);
+  const canExport = Boolean(
+    selectedExport && selectedFormat && (manualMode ? effectiveManualRange : selectedPeriod)
+  );
 
   return (
     <>
@@ -343,7 +399,10 @@ export function ExportData() {
                     <button
                       key={period.id}
                       type="button"
-                      onClick={() => setSelectedPeriod(period.id)}
+                      onClick={() => {
+                        setSelectedPeriod(period.id);
+                        setManualMode(false);
+                      }}
                       className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
                         isActive
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
@@ -355,6 +414,53 @@ export function ExportData() {
                   );
                 })}
               </div>
+              <div
+                className={`transition-[max-height,opacity,transform] duration-300 ease-out ${
+                  manualMode ? 'max-h-0 opacity-0 -translate-y-1 pointer-events-none' : 'max-h-16 opacity-100 translate-y-0'
+                }`}
+                style={{ overflow: 'hidden' }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManualMode(true);
+                    setSelectedPeriod(null);
+                  }}
+                  className="mt-3 inline-flex items-center rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:text-gray-900"
+                >
+                  Выбор вручную
+                </button>
+              </div>
+              <div
+                className={`transition-[max-height,opacity,transform,margin] duration-300 ease-out ${
+                  manualMode ? 'mt-4 max-h-48 opacity-100 translate-y-0' : 'mt-0 max-h-0 opacity-0 -translate-y-1 pointer-events-none'
+                }`}
+                style={{ overflow: 'hidden' }}
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_260px_260px] md:justify-start">
+                  <DatePickerInput
+                    label="Дата"
+                    value={manualDate}
+                    onChange={(value) => setManualDate(formatDateInput(value))}
+                    placeholder="ДД.ММ.ГГГГ"
+                    className="h-[36px]"
+                  />
+                  <TimePickerInput
+                    label="Время с"
+                    value={manualTimeFrom}
+                    onChange={setManualTimeFrom}
+                    placeholder="00:00:00"
+                    className="h-[36px]"
+                  />
+                  <TimePickerInput
+                    label="Время до"
+                    value={manualTimeTo}
+                    onChange={setManualTimeTo}
+                    placeholder="23:59:59"
+                    className="h-[36px]"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -365,7 +471,7 @@ export function ExportData() {
                 type="button"
                 onClick={handleExport}
                 disabled={!canExport}
-                className={`inline-flex h-10 -translate-y-[14px] items-center gap-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                className={`inline-flex h-10 -translate-y-[8px] items-center gap-2 px-4 rounded-lg text-sm font-medium transition-all ${
                   canExport
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-200 text-gray-500 cursor-not-allowed'

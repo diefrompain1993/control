@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, PencilLine, Plus, Trash2 } from 'lucide-react';
+﻿import { ChevronDown, ChevronUp, PencilLine, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useAuth } from '@/auth/authContext';
 import { roleLabels } from '@/auth/roles';
@@ -68,6 +68,7 @@ export function Users() {
   });
   const [editErrors, setEditErrors] = useState<{
     fullName?: string;
+    email?: string;
     password?: string;
     role?: string;
     form?: string;
@@ -145,6 +146,7 @@ export function Users() {
 
   const handleCreateUser = () => {
     const trimmedName = form.fullName.trim();
+    const formattedName = getNameWithInitials(trimmedName, trimmedName);
     const normalizedEmail = form.email.trim().toLowerCase();
     const nextErrors: typeof errors = {};
 
@@ -187,7 +189,7 @@ export function Users() {
         email: normalizedEmail,
         password: form.password,
         role: form.role as Role,
-        fullName: trimmedName,
+        fullName: formattedName,
         lastLogin: timestamp
       });
     } catch (error) {
@@ -198,7 +200,7 @@ export function Users() {
     }
 
     const creatorName = getNameWithInitials(currentUser?.fullName, '—');
-    const newUserName = getNameWithInitials(trimmedName, trimmedName);
+    const newUserName = formattedName;
 
     addAuditLogEntry({
       timestamp,
@@ -215,6 +217,8 @@ export function Users() {
 
   const handleEditUser = () => {
     const trimmedName = editForm.fullName.trim();
+    const formattedName = getNameWithInitials(trimmedName, trimmedName);
+    const normalizedEmail = editForm.email.trim().toLowerCase();
     const nextErrors: typeof editErrors = {};
 
     if (!editingEmail) {
@@ -235,6 +239,14 @@ export function Users() {
       nextErrors.fullName = 'Укажите фамилию, имя и отчество.';
     }
 
+    if (!normalizedEmail) {
+      nextErrors.email = 'Введите email.';
+    } else if (!emailRegex.test(normalizedEmail)) {
+      nextErrors.email = 'Введите корректный email.';
+    } else if (currentEntry && normalizedEmail !== currentEntry.email && userExists(normalizedEmail)) {
+      nextErrors.email = 'Пользователь с таким email уже существует.';
+    }
+
     if (!editForm.role) {
       nextErrors.role = 'Выберите роль.';
     }
@@ -248,14 +260,17 @@ export function Users() {
       return;
     }
 
-    const normalizedName = trimmedName.replace(/\s+/g, ' ');
+    const normalizedName = formattedName;
     const existingName = currentEntry?.fullName.trim().replace(/\s+/g, ' ') ?? '';
     const roleValue = editForm.role as Role;
     const passwordValue = editForm.password.trim();
     const passwordChanged =
       passwordValue.length > 0 && passwordValue !== (currentEntry?.password ?? '');
+    const emailChanged = normalizedEmail !== (currentEntry?.email ?? '');
+    const roleChanged = roleValue !== currentEntry?.role;
+    const nameChanged = normalizedName !== existingName;
     const hasChanges =
-      normalizedName !== existingName || roleValue !== currentEntry?.role || passwordChanged;
+      nameChanged || roleChanged || passwordChanged || emailChanged;
 
     if (!hasChanges) {
       setEditDialogOpen(false);
@@ -263,30 +278,84 @@ export function Users() {
       return;
     }
 
-    const updates: Partial<Parameters<typeof updateUser>[1]> = {
-      fullName: normalizedName,
-      role: roleValue
-    };
+    const changes: string[] = [];
+    const detailsParts: string[] = [];
+
+    if (nameChanged) {
+      changes.push('ФИО');
+      detailsParts.push(`ФИО: ${existingName} → ${normalizedName}`);
+    }
+    if (emailChanged) {
+      changes.push('email');
+      detailsParts.push(`Email: ${currentEntry?.email ?? ''} → ${normalizedEmail}`);
+    }
+    if (roleChanged) {
+      changes.push('роль');
+      detailsParts.push(
+        `Роль: ${roleLabels[currentEntry?.role as Role]} → ${roleLabels[roleValue]}`
+      );
+    }
     if (passwordChanged) {
-      updates.password = passwordValue;
+      changes.push('пароль');
+      detailsParts.push('Пароль: изменен');
     }
 
-    const updatedUser = updateUser(editingEmail as string, updates);
-    if (!updatedUser) {
-      setEditErrors({ form: 'Не удалось обновить пользователя.' });
-      return;
-    }
+    let updatedUser = null as ReturnType<typeof updateUser> | null;
+    const basePassword = passwordChanged ? passwordValue : (currentEntry?.password ?? '');
 
+    if (emailChanged) {
+      try {
+        deleteUser(currentEntry!.email);
+        updatedUser = addStoredUser({
+          email: normalizedEmail,
+          password: basePassword,
+          role: roleValue,
+          fullName: normalizedName,
+          lastLogin: currentEntry?.lastLogin ?? '—'
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Не удалось обновить пользователя.';
+        setEditErrors({ form: message });
+        return;
+      }
+
+      const lastLogin = getLastLoginByEmail(currentEntry!.email) ?? currentEntry!.lastLogin;
+      if (lastLogin && lastLogin !== '—') {
+        setLastLoginByEmail(normalizedEmail, lastLogin);
+      }
+    } else {
+      const updates: Partial<Parameters<typeof updateUser>[1]> = {
+        fullName: normalizedName,
+        role: roleValue
+      };
+      if (passwordChanged) {
+        updates.password = passwordValue;
+      }
+
+      updatedUser = updateUser(editingEmail as string, updates);
+      if (!updatedUser) {
+        setEditErrors({ form: 'Не удалось обновить пользователя.' });
+        return;
+      }
+    }
     const timestamp = getCurrentTimestamp();
     const editorName = getNameWithInitials(currentUser?.fullName, '—');
-    const targetName = getNameWithInitials(trimmedName, trimmedName);
+    const targetName = getNameWithInitials(normalizedName, normalizedName);
+    const action =
+      changes.length === 1
+        ? changes[0] === 'пароль'
+          ? 'Изменен пароль'
+          : `Изменено ${changes[0]}`
+        : 'Изменены данные пользователя';
+    const details = detailsParts.join(' · ');
 
     addAuditLogEntry({
       timestamp,
       user: editorName,
-      action: 'Изменен пользователь',
+      action,
       target: targetName,
-      details: `Роль: ${roleLabels[editForm.role as Role]} · Редактор: ${editorName}`
+      details
     });
 
     setRefreshKey((prev) => prev + 1);
@@ -310,7 +379,7 @@ export function Users() {
       user: editorName,
       action: 'Удален пользователь',
       target: targetName,
-      details: `Email: ${email} · Редактор: ${editorName}`
+      details: `Email: ${email}`
     });
 
     setRefreshKey((prev) => prev + 1);
@@ -502,11 +571,22 @@ export function Users() {
                 <Input
                   label="Электронная почта"
                   value={editForm.email}
-                  onChange={() => undefined}
+                  onChange={(value) => {
+                    setEditForm((prev) => ({ ...prev, email: value }));
+                    if (editErrors.email || editErrors.form) {
+                      setEditErrors((prev) => ({
+                        ...prev,
+                        email: undefined,
+                        form: undefined
+                      }));
+                    }
+                  }}
                   placeholder="name@example.com"
                   type="email"
-                  disabled
                 />
+                {editErrors.email && (
+                  <p className="mt-1 text-xs text-red-600">{editErrors.email}</p>
+                )}
               </div>
 
               <div>
@@ -694,6 +774,9 @@ export function Users() {
     </>
   );
 }
+
+
+
 
 
 

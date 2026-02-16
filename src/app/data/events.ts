@@ -12,7 +12,7 @@ export const MOCK_EVENTS: EventLogEntry[] = [
     date: '14.02.2026',
     time: '12:41:23',
     camera: 'Въезд-1',
-    plateNumber: 'A123BC',
+    plateNumber: 'A123BC77',
     owner: 'Иванов И.И.',
     status: 'Чёрный'
   },
@@ -20,7 +20,7 @@ export const MOCK_EVENTS: EventLogEntry[] = [
     date: '14.02.2026',
     time: '12:39:45',
     camera: 'Въезд-2',
-    plateNumber: 'X777XX',
+    plateNumber: 'X777XX78',
     owner: 'Петров П.П.',
     status: 'Белый'
   },
@@ -28,7 +28,7 @@ export const MOCK_EVENTS: EventLogEntry[] = [
     date: '14.02.2026',
     time: '12:35:12',
     camera: 'Въезд-1',
-    plateNumber: 'M999MR',
+    plateNumber: 'M999MR77',
     owner: 'ООО "СМК"',
     status: 'Подрядчик'
   },
@@ -36,7 +36,7 @@ export const MOCK_EVENTS: EventLogEntry[] = [
     date: '14.02.2026',
     time: '12:20:08',
     camera: 'Въезд-1',
-    plateNumber: 'K456KM',
+    plateNumber: 'K456KM77',
     owner: 'Неизвестно',
     status: 'Нет в списках'
   },
@@ -44,7 +44,7 @@ export const MOCK_EVENTS: EventLogEntry[] = [
     date: '13.02.2026',
     time: '12:15:33',
     camera: 'Въезд-2',
-    plateNumber: 'T888TT',
+    plateNumber: 'T888TT78',
     owner: 'Николаев В.В.',
     status: 'Белый'
   },
@@ -52,7 +52,7 @@ export const MOCK_EVENTS: EventLogEntry[] = [
     date: '13.02.2026',
     time: '12:10:17',
     camera: 'Въезд-1',
-    plateNumber: 'O555OO',
+    plateNumber: 'O555OO50',
     owner: 'ООО "СМК"',
     status: 'Подрядчик'
   },
@@ -60,7 +60,7 @@ export const MOCK_EVENTS: EventLogEntry[] = [
     date: '13.02.2026',
     time: '11:58:42',
     camera: 'Въезд-3',
-    plateNumber: 'K777KK',
+    plateNumber: 'K777KK52',
     owner: 'ООО "ГрандСтрой"',
     status: 'Подрядчик'
   },
@@ -68,7 +68,7 @@ export const MOCK_EVENTS: EventLogEntry[] = [
     date: '13.02.2026',
     time: '12:05:44',
     camera: 'Въезд-2',
-    plateNumber: 'C111CC',
+    plateNumber: 'C111CC50',
     owner: 'Неизвестно',
     status: 'Нет в списках'
   },
@@ -76,7 +76,7 @@ export const MOCK_EVENTS: EventLogEntry[] = [
     date: '12.02.2026',
     time: '12:22:19',
     camera: 'Въезд-1',
-    plateNumber: 'H123HH',
+    plateNumber: 'H123HH16',
     owner: 'ООО "ТрансСервис"',
     status: 'Подрядчик'
   },
@@ -84,7 +84,7 @@ export const MOCK_EVENTS: EventLogEntry[] = [
     date: '13.02.2026',
     time: '12:01:09',
     camera: 'Въезд-1',
-    plateNumber: 'B222BB',
+    plateNumber: 'B222BB50',
     owner: 'Соколов М.К.',
     status: 'Чёрный'
   },

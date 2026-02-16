@@ -33,6 +33,7 @@ interface ButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
+  className?: string;
 }
 
 export function Button({
@@ -42,7 +43,8 @@ export function Button({
   icon,
   onClick,
   disabled = false,
-  type = 'button'
+  type = 'button',
+  className
 }: ButtonProps) {
   const baseStyles = 'inline-flex items-center gap-2 rounded transition-all duration-200 font-normal';
   
@@ -64,7 +66,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${disabledStyles}`}
+      className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${disabledStyles} ${className ?? ''}`}
     >
       {icon && <span>{icon}</span>}
       {children}

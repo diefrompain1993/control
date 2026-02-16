@@ -4,11 +4,13 @@ import { useAuth } from '@/auth/authContext';
 import { FilterBar } from '@/app/components/ui/filter-bar';
 import { Input } from '@/app/components/ui/input';
 import { DatePickerInput } from '@/app/components/ui/date-picker-input';
+import { TimePickerInput } from '@/app/components/ui/time-picker-input';
 import { Select } from '@/app/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { Button } from '@/app/components/ui/button';
-import { formatPlateNumber, getPlateCountryInfo, getPlateRegionCode, normalizePlateNumber } from '@/app/utils/plate';
+import { formatPlateNumber, getPlateCountryInfo, getPlateCountryCode, normalizePlateNumber } from '@/app/utils/plate';
 import { BASE_VEHICLES } from '@/app/data/vehicles';
+import { PLATE_COUNTRY_OPTIONS } from '@/app/data/plateCountries';
 import { MOCK_EVENTS, type EventLogEntry } from '@/app/data/events';
 import { getStoredVehiclesByCategory, mergeVehicles } from '@/app/utils/vehicleStore';
 import { formatDateInput, parseDateRange } from '@/app/utils/dateFilter';
@@ -113,11 +115,16 @@ export function EventsLog() {
 
   const itemsPerPage = 10;
 
-  const countryOptions = [
-    { value: 'BY', label: 'BY' },
-    { value: 'KZ', label: 'KZ' },
-    { value: 'RUS', label: 'RUS' }
-  ];
+  const countryOptions = useMemo(() => {
+    const present = new Set(
+      MOCK_EVENTS.map((event) => getPlateCountryInfo(event.plateNumber).code).filter(
+        (code) => code !== 'UNKNOWN'
+      )
+    );
+
+    const filtered = PLATE_COUNTRY_OPTIONS.filter((option) => present.has(option.value));
+    return filtered.map((option) => ({ value: option.value, label: option.value }));
+  }, []);
 
   const listOptions = [
     { value: 'Белый', label: 'Белый список' },
@@ -178,7 +185,10 @@ export function EventsLog() {
     };
     const contractorFromSeconds = parseTimeToSeconds(contractorTimeFrom);
     const contractorToSeconds = parseTimeToSeconds(contractorTimeTo);
-    const normalizedPlateQuery = normalizePlateNumber(plateQuery.trim());
+    const plateTokens = plateQuery
+      .split(',')
+      .map((value) => normalizePlateNumber(value))
+      .filter(Boolean);
     const rawContractorQuery = contractorQuery.trim().toLowerCase();
     const normalizedContractorQuery = normalizeOrganizationName(contractorQuery);
     const initialsQuery = normalizeInitialsQuery(contractorQuery);
@@ -191,8 +201,10 @@ export function EventsLog() {
       const matchesCountry = !plateCountryFilter || plateInfo.code === plateCountryFilter;
       const matchesStatus = !statusFilter || event.status === statusFilter;
       const matchesPlate =
-        !normalizedPlateQuery ||
-        normalizePlateNumber(event.plateNumber).includes(normalizedPlateQuery);
+        plateTokens.length === 0 ||
+        plateTokens.some((token) =>
+          normalizePlateNumber(event.plateNumber).includes(token)
+        );
 
       if (!matchesDate || !matchesCountry || !matchesStatus || !matchesPlate) return false;
 
@@ -264,11 +276,14 @@ export function EventsLog() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const plateParam = params.get('plate') ?? '';
+    const platesParam = params.get('plates') ?? '';
     const ownerParam = params.get('owner') ?? '';
     const statusParam = params.get('status') ?? '';
     const allowedStatuses = ['Белый', 'Чёрный', 'Подрядчик', 'Нет в списках'];
 
-    if (plateParam) {
+    if (platesParam) {
+      setPlateQuery(platesParam);
+    } else if (plateParam) {
       setPlateQuery(plateParam);
     }
     if (ownerParam) {
@@ -316,9 +331,11 @@ export function EventsLog() {
           <h1 className="text-2xl mb-2">Журнал въездов</h1>
           <p className="text-sm text-gray-600">Полная история событий распознавания</p>
         </div>
-        <Button variant="secondary" icon={<Download className="w-4 h-4" />}>
-          Экспорт
-        </Button>
+        {user?.role === 'office_admin' && (
+          <Button variant="secondary" icon={<Download className="w-4 h-4" />}>
+            Экспорт
+          </Button>
+        )}
       </div>
 
         <FilterBar>
@@ -350,6 +367,7 @@ export function EventsLog() {
                 placeholder={'Все номера'}
                 options={countryOptions}
                 size="md"
+                className="h-[36px]"
               />
             </div>
 
@@ -361,11 +379,16 @@ export function EventsLog() {
                 placeholder={'Все списки'}
                 options={listOptions}
                 size="md"
+                className="h-[36px]"
               />
             </div>
 
             <div className="flex items-end">
-              <Button variant="destructive" onClick={handleResetFilters}>
+              <Button
+                variant="destructive"
+                onClick={handleResetFilters}
+                className="h-[37px] px-4"
+              >
                 Сбросить фильтры
               </Button>
             </div>
@@ -383,7 +406,7 @@ export function EventsLog() {
           }}
           aria-hidden={!showExtraFilters}
         >
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[240px_180px_180px] md:justify-start">
             <div className="relative">
               <Input
                 label={isContractorFilter ? 'Организация' : 'Владелец'}
@@ -429,22 +452,20 @@ export function EventsLog() {
                 )}
             </div>
 
-            <Input
+            <TimePickerInput
               label={'Время с'}
               value={contractorTimeFrom}
               onChange={setContractorTimeFrom}
               placeholder="00:00:00"
-              type="time"
-              step={1}
+              className="h-[36px]"
             />
 
-            <Input
+            <TimePickerInput
               label={'Время по'}
               value={contractorTimeTo}
               onChange={setContractorTimeTo}
               placeholder="23:59:59"
-              type="time"
-              step={1}
+              className="h-[36px]"
             />
           </div>
         </div>
@@ -501,7 +522,7 @@ export function EventsLog() {
                 displayedEvents.map((event, index) => {
                   const isUnrecognized = event.status === 'Нет в списках';
                   const ownerLabel = isUnrecognized ? 'Неизвестно' : event.owner;
-                  const countryCode = getPlateRegionCode(event.plateNumber);
+                  const countryCode = getPlateCountryCode(event.plateNumber);
                   const formattedPlate = formatPlateNumber(event.plateNumber);
 
                   return (
@@ -518,32 +539,39 @@ export function EventsLog() {
                         </td>
                       )}
                       <td className="py-4 px-4 text-center text-foreground/90 plate-text">
-                        <span className="inline-flex items-center gap-2">
-                          {formattedPlate}
-                          <span className="text-[11px] text-muted-foreground font-semibold">({countryCode})</span>
-                          {isUnrecognized && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
+                        <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
+                          <span aria-hidden="true" />
+                          <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
+                            {formattedPlate}
+                            <span className="text-[11px] text-muted-foreground font-semibold">
+                              ({countryCode})
+                            </span>
+                          </span>
+                          <span className="inline-flex items-center justify-start">
+                            {isUnrecognized && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
                                   aria-label="Плохо распознан номер"
-                                  className="inline-flex items-center text-amber-500 opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 rounded-sm"
+                                    className="inline-flex items-center text-amber-500 opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 rounded-sm"
+                                  >
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="top"
+                                  sideOffset={6}
+                                  className="tooltip-cloud"
+                                  arrowClassName="tooltip-cloud-arrow"
+                                  showArrow={false}
                                 >
-                                  <AlertTriangle className="w-3.5 h-3.5" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent
-                                side="top"
-                                sideOffset={6}
-                                className="tooltip-cloud"
-                                arrowClassName="tooltip-cloud-arrow"
-                                showArrow={false}
-                              >
                                 Плохо распознан номер
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </span>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-4 px-4 text-center text-[14px] text-foreground/80">
                         {ownerLabel}
