@@ -2281,7 +2281,7 @@ export function Vehicles() {
 
 
 
-              Сбросить фильтры
+              Сбросить
 
 
 
@@ -2967,6 +2967,7 @@ export function Vehicles() {
 
 
 }
+
 
 
 

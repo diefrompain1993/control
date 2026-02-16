@@ -143,7 +143,7 @@ export function AuditLog() {
 
       <FilterBar>
         <form onSubmit={handleFilterSubmit} className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[240px] max-w-[420px]">
+          <div className="w-[390px] flex-none">
             <Input
               label="Поиск по пользователю или объекту"
               value={searchQuery}
@@ -170,13 +170,13 @@ export function AuditLog() {
             />
           </div>
 
-          <div className="w-[180px] flex-none">
+          <div className="w-56 min-w-[220px]">
             <DatePickerInput
               label="Дата"
               value={dateFilter}
               onChange={(value) => setDateFilter(formatDateInput(value))}
               placeholder="ДД.ММ.ГГГГ"
-              className="h-[36px] w-[180px]"
+              className="h-[36px]"
             />
           </div>
 

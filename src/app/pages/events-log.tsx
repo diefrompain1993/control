@@ -340,7 +340,7 @@ export function EventsLog() {
 
         <FilterBar>
           <div className="flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-[200px]">
+            <div className="w-56 min-w-[220px]">
               <DatePickerInput
                 label={'Дата'}
                 value={dateFilter}
@@ -387,9 +387,9 @@ export function EventsLog() {
               <Button
                 variant="destructive"
                 onClick={handleResetFilters}
-                className="h-[37px] px-4"
+                className="h-[36px] px-4"
               >
-                Сбросить фильтры
+                Сбросить
               </Button>
             </div>
           </div>
@@ -643,3 +643,4 @@ export function EventsLog() {
     </>
   );
 }
+

@@ -745,7 +745,7 @@ export function Contractors() {
 
       <FilterBar>
         <form onSubmit={handleSearchSubmit} className="flex flex-wrap gap-4">
-          <div className="flex-1 min-w-[240px] max-w-[520px]">
+          <div className="w-full max-w-[390px]">
             <div className="relative">
               <Input
                 label="Поиск по номеру или организации"
