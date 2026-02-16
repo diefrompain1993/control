@@ -988,7 +988,7 @@ export function Contractors() {
                     <td className="py-4 px-6 text-center text-purple-600 plate-text">
                       <span className="inline-flex items-center justify-center gap-2">
                         {formatPlateNumber(vehicle.plateNumber)}
-                        <span className="text-[11px] text-muted-foreground font-semibold">
+                        <span className="text-[11px] text-foreground/70 font-semibold">
                           ({getPlateCountryCode(vehicle.plateNumber, vehicle.country)})
                         </span>
                       </span>

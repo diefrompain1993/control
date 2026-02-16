@@ -313,7 +313,7 @@ export function QuickSearch({ className }: QuickSearchProps) {
                   Найдено:
                   <span className="inline-flex items-center gap-2 text-foreground plate-text whitespace-nowrap">
                     {formatPlateNumber(foundVehicle?.plateNumber ?? foundEvent!.plateNumber)}
-                    <span className="text-[11px] text-muted-foreground font-semibold">
+                    <span className="text-[11px] text-foreground/70 font-semibold">
                       ({getPlateCountryCode(
                         foundVehicle?.plateNumber ?? foundEvent!.plateNumber,
                         foundVehicle?.country

@@ -542,18 +542,20 @@ export function Vehicles() {
 
   }, [refreshKey]);
 
+  const suggestionVehicles = useMemo(
+    () => (categoryFilter ? vehicles.filter((vehicle) => vehicle.category === categoryFilter) : vehicles),
+    [vehicles, categoryFilter]
+  );
+
   const plateCountryMap = useMemo(() => {
     const map = new Map<string, string>();
-    vehicles.forEach((vehicle) => {
+    suggestionVehicles.forEach((vehicle) => {
       if (!map.has(vehicle.plateNumber) && vehicle.country) {
         map.set(vehicle.plateNumber, vehicle.country);
       }
     });
     return map;
-  }, [vehicles]);
-
-
-
+  }, [suggestionVehicles]);
 
   const plateSuggestions = useMemo(() => {
 
@@ -590,7 +592,7 @@ export function Vehicles() {
 
 
 
-    vehicles.forEach((vehicle) => {
+    suggestionVehicles.forEach((vehicle) => {
 
 
 
@@ -630,7 +632,7 @@ export function Vehicles() {
 
 
 
-  }, [vehicles, searchQuery]);
+  }, [suggestionVehicles, searchQuery]);
 
 
 
@@ -670,7 +672,7 @@ export function Vehicles() {
 
 
 
-    vehicles.forEach((vehicle) => {
+    suggestionVehicles.forEach((vehicle) => {
 
 
 
@@ -755,7 +757,7 @@ export function Vehicles() {
 
 
 
-  }, [vehicles, searchQuery]);
+  }, [suggestionVehicles, searchQuery]);
 
 
 
@@ -2815,7 +2817,7 @@ export function Vehicles() {
                           <span aria-hidden="true" />
                           <span className="inline-flex items-center justify-center gap-2">
                             {formatPlateNumber(vehicle.plateNumber)}
-                            <span className="text-[11px] text-muted-foreground font-semibold">
+                            <span className="text-[11px] text-foreground/70 font-semibold">
                               ({countryCode})
                             </span>
                           </span>

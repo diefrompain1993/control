@@ -1,4 +1,6 @@
-﻿interface SelectOption {
+﻿import { useState } from 'react';
+
+interface SelectOption {
   value: string;
   label: string;
 }
@@ -26,6 +28,7 @@ export function Select({
   size = 'md',
   className
 }: SelectProps) {
+  const [open, setOpen] = useState(false);
   const sizeStyles = {
     sm: 'h-9 px-3 py-1.5 text-[13px]',
     md: 'h-10 px-3 py-2 text-sm'
@@ -37,7 +40,17 @@ export function Select({
       <div className="relative">
         <select
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setOpen(false);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onMouseDown={() => {
+            if (!disabled) {
+              setOpen(true);
+            }
+          }}
           disabled={disabled}
           className={`peer w-full appearance-none border border-gray-300 rounded transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 pr-9 ${sizeStyles[size]} ${className ?? ''}`}
         >
@@ -55,7 +68,7 @@ export function Select({
           </option>
         ))}
         </select>
-        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-transform duration-200 peer-focus:rotate-180">
+        <span className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''} `}>
           <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
             <path
               fillRule="evenodd"

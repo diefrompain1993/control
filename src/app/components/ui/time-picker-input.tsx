@@ -29,6 +29,29 @@ const parseTimeValue = (value: string) => {
   return { hours, minutes, seconds };
 };
 
+const formatTimeInput = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 6);
+  if (!digits) return '';
+  const hours = clamp(Number(digits.slice(0, 2) || '0'), 0, 23);
+
+  if (digits.length <= 2) {
+    return digits.length === 2 ? pad(hours) : digits;
+  }
+
+  const minutesRaw = digits.slice(2, 4);
+  const minutes = clamp(Number(minutesRaw || '0'), 0, 59);
+
+  if (digits.length <= 4) {
+    const minutesPart = digits.length === 3 ? digits.slice(2) : pad(minutes);
+    return `${pad(hours)}:${minutesPart}`;
+  }
+
+  const secondsRaw = digits.slice(4, 6);
+  const seconds = clamp(Number(secondsRaw || '0'), 0, 59);
+  const secondsPart = digits.length === 5 ? digits.slice(4) : pad(seconds);
+  return `${pad(hours)}:${pad(minutes)}:${secondsPart}`;
+};
+
 const buildTimeValue = (hours: number, minutes: number, seconds: number) =>
   `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 
@@ -46,6 +69,9 @@ export function TimePickerInput({
   const hours = parsed?.hours ?? 0;
   const minutes = parsed?.minutes ?? 0;
   const seconds = parsed?.seconds ?? 0;
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+  };
 
   const handlePick = (nextHours: number, nextMinutes: number, nextSeconds: number) => {
     onChange(buildTimeValue(nextHours, nextMinutes, nextSeconds));
@@ -58,12 +84,27 @@ export function TimePickerInput({
   return (
     <div>
       {label && <label className="block text-sm text-gray-600 mb-2">{label}</label>}
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <div className="relative" ref={inputWrapperRef}>
           <input
             type="text"
             value={value}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) => onChange(formatTimeInput(event.target.value))}
+            onFocus={() => {
+              if (!disabled) {
+                setOpen(true);
+              }
+            }}
+            onClick={() => {
+              if (!disabled) {
+                setOpen(true);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                setOpen(false);
+              }
+            }}
             placeholder={placeholder}
             disabled={disabled}
             className={`w-full pl-4 pr-10 py-2 border border-gray-300 rounded text-sm transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}

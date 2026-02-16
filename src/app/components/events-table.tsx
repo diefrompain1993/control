@@ -194,7 +194,7 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
                       <span aria-hidden="true" />
                       <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
                         {formattedPlate}
-                        <span className="text-[11px] text-muted-foreground font-semibold">
+                        <span className="text-[11px] text-foreground/70 font-semibold">
                           ({countryCode})
                         </span>
                       </span>

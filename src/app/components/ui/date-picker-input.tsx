@@ -4,6 +4,7 @@ import type { DateRange } from 'react-day-picker';
 import { ru } from 'date-fns/locale';
 import { Calendar } from '@/app/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/app/components/ui/popover';
+import { finalizeDateInput } from '@/app/utils/dateFilter';
 
 interface DatePickerInputProps {
   label?: string;
@@ -149,10 +150,20 @@ export function DatePickerInput({
     }
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      const finalized = finalizeDateInput(value);
+      if (finalized !== value) {
+        onChange(finalized);
+      }
+    }
+    setOpen(nextOpen);
+  };
+
   return (
     <div>
       {label && <label className="block text-sm text-gray-600 mb-2">{label}</label>}
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <div className="relative" ref={inputWrapperRef}>
           <input
             type="text"
