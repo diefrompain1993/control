@@ -1,123 +1,19 @@
-﻿import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+﻿import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/auth/authContext';
 import { FilterBar } from '@/app/components/ui/filter-bar';
 import { Input } from '@/app/components/ui/input';
+import { DatePickerInput } from '@/app/components/ui/date-picker-input';
 import { Select } from '@/app/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { Button } from '@/app/components/ui/button';
-import { formatPlateNumber, getPlateCountryInfo } from '@/app/utils/plate';
+import { formatPlateNumber, getPlateCountryInfo, getPlateRegionCode, normalizePlateNumber } from '@/app/utils/plate';
 import { BASE_VEHICLES } from '@/app/data/vehicles';
+import { MOCK_EVENTS, type EventLogEntry } from '@/app/data/events';
 import { getStoredVehiclesByCategory, mergeVehicles } from '@/app/utils/vehicleStore';
-import { formatDateInput, normalizeDateInput } from '@/app/utils/dateFilter';
+import { formatDateInput, parseDateRange } from '@/app/utils/dateFilter';
 
-interface Event {
-  date: string;
-  time: string;
-  camera: string;
-  plateNumber: string;
-  owner: string;
-  status: 'Чёрный' | 'Белый' | 'Нет в списках' | 'Подрядчик';
-}
-
-const mockEvents: Event[] = [
-  {
-    date: '14.02.2026',
-    time: '12:41:23',
-    camera: 'Въезд-1',
-    plateNumber: 'A123BC',
-    owner: 'Иванов И.И.',
-    status: 'Чёрный'
-  },
-  {
-    date: '14.02.2026',
-    time: '12:39:45',
-    camera: 'Въезд-2',
-    plateNumber: 'X777XX',
-    owner: 'Петров П.П.',
-    status: 'Белый'
-  },
-  {
-    date: '14.02.2026',
-    time: '12:35:12',
-    camera: 'Въезд-1',
-    plateNumber: 'M999MR',
-    owner: 'ООО "СМК"',
-    status: 'Подрядчик'
-  },
-  {
-    date: '14.02.2026',
-    time: '12:20:08',
-    camera: 'Въезд-1',
-    plateNumber: 'K456KM',
-    owner: 'Неизвестно',
-    status: 'Нет в списках'
-  },
-  {
-    date: '13.02.2026',
-    time: '12:15:33',
-    camera: 'Въезд-2',
-    plateNumber: 'T888TT',
-    owner: 'Николаев В.В.',
-    status: 'Белый'
-  },
-  {
-    date: '13.02.2026',
-    time: '12:10:17',
-    camera: 'Въезд-1',
-    plateNumber: 'O555OO',
-    owner: 'ООО "СМК"',
-    status: 'Подрядчик'
-  },
-  {
-    date: '13.02.2026',
-    time: '11:58:42',
-    camera: 'Въезд-3',
-    plateNumber: 'K777KK',
-    owner: 'ООО "ГрандСтрой"',
-    status: 'Подрядчик'
-  },
-  {
-    date: '13.02.2026',
-    time: '12:05:44',
-    camera: 'Въезд-2',
-    plateNumber: 'C111CC',
-    owner: 'Неизвестно',
-    status: 'Нет в списках'
-  },
-  {
-    date: '12.02.2026',
-    time: '12:22:19',
-    camera: 'Въезд-1',
-    plateNumber: 'H123HH',
-    owner: 'ООО "ТрансСервис"',
-    status: 'Подрядчик'
-  },
-  {
-    date: '13.02.2026',
-    time: '12:01:09',
-    camera: 'Въезд-1',
-    plateNumber: 'B222BB',
-    owner: 'Соколов М.К.',
-    status: 'Чёрный'
-  },
-  {
-    date: '12.02.2026',
-    time: '11:54:22',
-    camera: 'Въезд-3',
-    plateNumber: '123ABC45',
-    owner: 'ТОО "Алма"',
-    status: 'Белый'
-  },
-  {
-    date: '12.02.2026',
-    time: '11:48:05',
-    camera: 'Въезд-2',
-    plateNumber: '1234AB5',
-    owner: 'ОАО "МинскСтрой"',
-    status: 'Чёрный'
-  }
-];
+type Event = EventLogEntry;
 
 const parseTimeToSeconds = (value: string) => {
   if (!value) return null;
@@ -135,6 +31,12 @@ const parseDateTimeToTimestamp = (date: string, time: string) => {
     .split(':')
     .map((value) => Number(value));
   return new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+};
+
+const parseDateToTimestamp = (value: string) => {
+  const [day, month, year] = value.split('.').map((part) => Number(part));
+  if (!day || !month || !year) return 0;
+  return new Date(year, month - 1, day).getTime();
 };
 const normalizeInitialsQuery = (value: string) =>
   value
@@ -187,6 +89,7 @@ export function EventsLog() {
   const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [dateFilter, setDateFilter] = useState('');
+  const [plateQuery, setPlateQuery] = useState('');
   const [dateSort, setDateSort] = useState<'asc' | 'desc'>('desc');
   const [plateCountryFilter, setPlateCountryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -210,25 +113,17 @@ export function EventsLog() {
 
   const itemsPerPage = 10;
 
-  const countryOptions = useMemo(() => {
-    const optionsMap = new Map<string, string>();
-
-    mockEvents.forEach((event) => {
-      const info = getPlateCountryInfo(event.plateNumber);
-      if (!optionsMap.has(info.code)) {
-        optionsMap.set(info.code, info.label);
-      }
-    });
-
-    return Array.from(optionsMap, ([value, label]) => ({ value, label })).sort((a, b) =>
-      a.label.localeCompare(b.label, 'ru')
-    );
-  }, []);
+  const countryOptions = [
+    { value: 'BY', label: 'BY' },
+    { value: 'KZ', label: 'KZ' },
+    { value: 'RUS', label: 'RUS' }
+  ];
 
   const listOptions = [
     { value: 'Белый', label: 'Белый список' },
     { value: 'Чёрный', label: 'Чёрный список' },
-    { value: 'Подрядчик', label: 'Подрядчики' }
+    { value: 'Подрядчик', label: 'Подрядчики' },
+    { value: 'Нет в списках', label: 'Нет в списках' }
   ];
 
   const contractorOrganizations = useMemo(() => {
@@ -260,22 +155,46 @@ export function EventsLog() {
 
 
   const filteredEvents = useMemo(() => {
-    const normalizedDate = normalizeDateInput(dateFilter);
+    const { start: dateStart, end: dateEnd } = parseDateRange(dateFilter);
+    const startTimestamp = dateStart.length === 10 ? parseDateToTimestamp(dateStart) : null;
+    const endTimestamp = dateEnd.length === 10 ? parseDateToTimestamp(dateEnd) : null;
+    const hasRange = startTimestamp !== null && endTimestamp !== null;
+    const matchesDateValue = (value: string) => {
+      if (!dateStart && !dateEnd) return true;
+      if (hasRange) {
+        const valueTimestamp = parseDateToTimestamp(value);
+        const min = Math.min(startTimestamp!, endTimestamp!);
+        const max = Math.max(startTimestamp!, endTimestamp!);
+        return valueTimestamp >= min && valueTimestamp <= max;
+      }
+      if (startTimestamp !== null) {
+        return value === dateStart;
+      }
+      if (endTimestamp !== null) {
+        return value === dateEnd;
+      }
+      const partial = dateStart || dateEnd;
+      return partial ? value.startsWith(partial) : true;
+    };
     const contractorFromSeconds = parseTimeToSeconds(contractorTimeFrom);
     const contractorToSeconds = parseTimeToSeconds(contractorTimeTo);
+    const normalizedPlateQuery = normalizePlateNumber(plateQuery.trim());
     const rawContractorQuery = contractorQuery.trim().toLowerCase();
     const normalizedContractorQuery = normalizeOrganizationName(contractorQuery);
     const initialsQuery = normalizeInitialsQuery(contractorQuery);
     const normalizedOwnerQuery = normalizeOwnerName(contractorQuery);
 
-    return mockEvents.filter((event) => {
-      const matchesDate = !normalizedDate || event.date.startsWith(normalizedDate);
+    return MOCK_EVENTS.filter((event) => {
+      const matchesDate = matchesDateValue(event.date);
 
       const plateInfo = getPlateCountryInfo(event.plateNumber);
       const matchesCountry = !plateCountryFilter || plateInfo.code === plateCountryFilter;
       const matchesStatus = !statusFilter || event.status === statusFilter;
+      const matchesPlate =
+        !normalizedPlateQuery ||
+        normalizePlateNumber(event.plateNumber).includes(normalizedPlateQuery);
 
-      if (!matchesDate || !matchesCountry || !matchesStatus) return false;
+      if (!matchesDate || !matchesCountry || !matchesStatus || !matchesPlate) return false;
 
       if (!showExtraFilters) {
         return true;
@@ -306,11 +225,28 @@ export function EventsLog() {
 
       return matchesOrganization && matchesFrom && matchesTo;
     });
-  }, [dateFilter, plateCountryFilter, statusFilter, contractorQuery, contractorTimeFrom, contractorTimeTo]);
+  }, [
+    dateFilter,
+    plateQuery,
+    plateCountryFilter,
+    statusFilter,
+    contractorQuery,
+    contractorTimeFrom,
+    contractorTimeTo
+  ]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateFilter, plateCountryFilter, statusFilter, contractorQuery, contractorTimeFrom, contractorTimeTo, dateSort]);
+  }, [
+    dateFilter,
+    plateQuery,
+    plateCountryFilter,
+    statusFilter,
+    contractorQuery,
+    contractorTimeFrom,
+    contractorTimeTo,
+    dateSort
+  ]);
 
   useEffect(() => {
     if (!showExtraFilters) {
@@ -324,6 +260,24 @@ export function EventsLog() {
       setOrgSuggestionsOpen(false);
     }
   }, [showExtraFilters, isContractorFilter]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const plateParam = params.get('plate') ?? '';
+    const ownerParam = params.get('owner') ?? '';
+    const statusParam = params.get('status') ?? '';
+    const allowedStatuses = ['Белый', 'Чёрный', 'Подрядчик', 'Нет в списках'];
+
+    if (plateParam) {
+      setPlateQuery(plateParam);
+    }
+    if (ownerParam) {
+      setContractorQuery(ownerParam);
+    }
+    if (allowedStatuses.includes(statusParam)) {
+      setStatusFilter(statusParam);
+    }
+  }, []);
 
   const sortedEvents = useMemo(() => {
     const next = [...filteredEvents];
@@ -343,6 +297,7 @@ export function EventsLog() {
 
   const handleResetFilters = () => {
     setDateFilter('');
+    setPlateQuery('');
     setPlateCountryFilter('');
     setStatusFilter('');
     setContractorQuery('');
@@ -356,45 +311,65 @@ export function EventsLog() {
   return (
     <>
       {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl mb-2">Журнал въездов</h1>
-        <p className="text-sm text-gray-600">Полная история событий распознавания</p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl mb-2">Журнал въездов</h1>
+          <p className="text-sm text-gray-600">Полная история событий распознавания</p>
+        </div>
+        <Button variant="secondary" icon={<Download className="w-4 h-4" />}>
+          Экспорт
+        </Button>
       </div>
 
-      <FilterBar>
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-4">
-          <Input
-            label={'Дата'}
-            value={dateFilter}
-            onChange={(value) => setDateFilter(formatDateInput(value))}
-            placeholder={'ДД.ММ.ГГГГ'}
-            type="text"
-          />
+        <FilterBar>
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex-1 min-w-[200px]">
+              <DatePickerInput
+                label={'Дата'}
+                value={dateFilter}
+                onChange={(value) => setDateFilter(formatDateInput(value))}
+                placeholder={'ДД.ММ.ГГГГ'}
+              />
+            </div>
 
-          <Select
-            label={'Номера'}
-            value={plateCountryFilter}
-            onChange={setPlateCountryFilter}
-            placeholder={'Все номера'}
-            options={countryOptions}
-            size="sm"
-          />
+            <div className="flex-1 min-w-[200px]">
+              <Input
+                label={'Номер'}
+                value={plateQuery}
+                onChange={setPlateQuery}
+                placeholder={'А123ВС'}
+                type="text"
+              />
+            </div>
 
-          <Select
-            label={'Список'}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            placeholder={'Все списки'}
-            options={listOptions}
-            size="sm"
-          />
+            <div className="flex-1 min-w-[200px]">
+              <Select
+                label={'Регион номера'}
+                value={plateCountryFilter}
+                onChange={setPlateCountryFilter}
+                placeholder={'Все номера'}
+                options={countryOptions}
+                size="md"
+              />
+            </div>
 
-          <div className="flex items-end self-end">
-            <Button variant="destructive" onClick={handleResetFilters}>
-              Сбросить фильтры
-            </Button>
+            <div className="flex-1 min-w-[200px]">
+              <Select
+                label={'Список'}
+                value={statusFilter}
+                onChange={setStatusFilter}
+                placeholder={'Все списки'}
+                options={listOptions}
+                size="md"
+              />
+            </div>
+
+            <div className="flex items-end">
+              <Button variant="destructive" onClick={handleResetFilters}>
+                Сбросить фильтры
+              </Button>
+            </div>
           </div>
-        </div>
 
         <div
           className="transition-all duration-300 ease-out"
@@ -489,11 +464,11 @@ export function EventsLog() {
           <table className="w-full table-fixed">
             <thead>
               <tr className="bg-muted/20 border-b border-border">
-                <th className="text-left py-4 px-4 text-[12px] font-bold uppercase tracking-wider">
+                <th className="text-center py-4 px-4 text-[12px] font-bold uppercase tracking-wider">
                   <button
                     type="button"
                     onClick={() => setDateSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                    className="inline-flex items-center gap-1 text-foreground/70 hover:text-foreground transition-colors"
+                    className="inline-flex items-center justify-center gap-1 text-foreground/70 hover:text-foreground transition-colors text-[12px] font-bold uppercase tracking-wider"
                   >
                     Дата и время
                     {dateSort === 'asc' ? (
@@ -504,18 +479,18 @@ export function EventsLog() {
                   </button>
                 </th>
                 {!isLimitedView && (
-                  <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider w-36">
+                  <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider w-36">
                     Камера
                   </th>
                 )}
-                <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Номер
                 </th>
-                <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Владелец
                 </th>
                 {!isLimitedView && (
-                  <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider w-44">
+                  <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider w-44">
                     Список
                   </th>
                 )}
@@ -526,8 +501,7 @@ export function EventsLog() {
                 displayedEvents.map((event, index) => {
                   const isUnrecognized = event.status === 'Нет в списках';
                   const ownerLabel = isUnrecognized ? 'Неизвестно' : event.owner;
-                  const plateInfo = getPlateCountryInfo(event.plateNumber);
-                  const countryCode = plateInfo.code === 'UNKNOWN' ? 'CIS' : plateInfo.code;
+                  const countryCode = getPlateRegionCode(event.plateNumber);
                   const formattedPlate = formatPlateNumber(event.plateNumber);
 
                   return (
@@ -535,15 +509,15 @@ export function EventsLog() {
                       key={index}
                       className="border-b border-border/50 hover:bg-muted/30 transition-smooth"
                     >
-                      <td className="py-4 px-4 text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
+                      <td className="py-4 px-4 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
                         {`${event.date} ${event.time}`}
                       </td>
                       {!isLimitedView && (
-                        <td className="py-4 px-4 text-[14px] text-foreground/80">
+                        <td className="py-4 px-4 text-center text-[14px] text-foreground/80">
                           {event.camera}
                         </td>
                       )}
-                      <td className="py-4 px-4 text-[14px] font-semibold text-foreground/90 font-mono">
+                      <td className="py-4 px-4 text-center text-foreground/90 plate-text">
                         <span className="inline-flex items-center gap-2">
                           {formattedPlate}
                           <span className="text-[11px] text-muted-foreground font-semibold">({countryCode})</span>
@@ -553,7 +527,7 @@ export function EventsLog() {
                                 <button
                                   type="button"
                                   aria-label="Плохо распознан номер"
-                                  className="inline-flex items-center text-amber-500 opacity-80 animate-pulse focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 rounded-sm"
+                                  className="inline-flex items-center text-amber-500 opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 rounded-sm"
                                 >
                                   <AlertTriangle className="w-3.5 h-3.5" />
                                 </button>
@@ -571,11 +545,11 @@ export function EventsLog() {
                           )}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-[14px] text-foreground/80">
+                      <td className="py-4 px-4 text-center text-[14px] text-foreground/80">
                         {ownerLabel}
                       </td>
                       {!isLimitedView && (
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-4 text-center">
                           <span
                             className={`inline-flex items-center px-3 py-1 rounded-full text-[13px] font-medium ${getStatusStyles(
                               event.status

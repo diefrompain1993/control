@@ -13,7 +13,7 @@ export type RouteId =
   | 'export';
 
 const ALL_ROLES: Role[] = ['admin', 'office_admin', 'guard'];
-const ADMIN_ROLES: Role[] = ['admin', 'office_admin'];
+const ADMIN_ROLES: Role[] = ['office_admin'];
 const EXPORT_ROLES: Role[] = ['office_admin'];
 
 export const ROUTE_CONFIG: Record<RouteId, { path: string; roles: Role[] }> = {

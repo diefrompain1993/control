@@ -1,7 +1,7 @@
-import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { useMemo, useState } from 'react';
-import { formatPlateNumber, getPlateCountryInfo } from '@/app/utils/plate';
+import { formatPlateNumber, getPlateRegionCode } from '@/app/utils/plate';
 
 interface Event {
   id: string;
@@ -72,10 +72,26 @@ const events: Event[] = [
   {
     id: '00008',
     time: '12:01:19',
-    camera: 'Въезд-1',
-    plateNumber: 'С777МС',
-    owner: 'Васильев О.И.',
+    camera: 'Въезд-2',
+    plateNumber: 'В888АА',
+    owner: 'Смирнова Е.П.',
     status: 'Белый'
+  },
+  {
+    id: '00009',
+    time: '11:58:42',
+    camera: 'Въезд-2',
+    plateNumber: 'Р321КР',
+    owner: 'Неизвестно',
+    status: 'Нет в списках'
+  },
+  {
+    id: '00010',
+    time: '11:54:22',
+    camera: 'Въезд-1',
+    plateNumber: 'О555ОО',
+    owner: 'ООО "Строймонтаж"',
+    status: 'Подрядчик'
   }
 ];
 
@@ -124,11 +140,11 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
         <table className="w-full table-fixed">
           <thead>
             <tr className="bg-muted/20 border-b border-border">
-              <th className="text-left py-4 px-4 text-[12px] font-bold uppercase tracking-wider">
+              <th className="text-center py-4 px-4 text-[12px] font-bold uppercase tracking-wider">
                 <button
                   type="button"
                   onClick={() => setTimeSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                  className="inline-flex items-center gap-1 text-foreground/70 hover:text-foreground transition-colors"
+                  className="inline-flex items-center justify-center gap-1 text-foreground/70 hover:text-foreground transition-colors text-[12px] font-bold uppercase tracking-wider"
                 >
                   Время
                   {timeSort === 'asc' ? (
@@ -138,16 +154,16 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
                   )}
                 </button>
               </th>
-              <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+              <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                 Камера
               </th>
-              <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+              <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                 Номер
               </th>
-              <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+              <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                 Владелец
               </th>
-              <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+              <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                 Список
               </th>
             </tr>
@@ -156,8 +172,7 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
             {sortedEvents.map((event) => {
               const isUnrecognized = event.status === 'Нет в списках';
               const ownerLabel = isUnrecognized ? 'Неизвестно' : event.owner;
-              const plateInfo = getPlateCountryInfo(event.plateNumber);
-              const countryCode = plateInfo.code === 'UNKNOWN' ? 'CIS' : plateInfo.code;
+              const countryCode = getPlateRegionCode(event.plateNumber);
               const formattedPlate = formatPlateNumber(event.plateNumber);
 
               return (
@@ -165,13 +180,13 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
                   key={event.id}
                   className="border-b border-border/50 hover:bg-muted/30 transition-smooth group"
                 >
-                  <td className="py-4 px-4 text-[14px] font-medium text-foreground/80 font-mono transition-colors hover:text-foreground">
+                  <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground/80 font-mono transition-colors hover:text-foreground">
                     {event.time}
                   </td>
-                  <td className="py-4 px-4 text-[14px] font-medium text-foreground/80">
+                  <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground/80">
                     {event.camera}
                   </td>
-                  <td className="py-4 px-4 text-[14px] font-bold text-foreground font-mono">
+                  <td className="py-4 px-4 text-center text-foreground plate-text">
                     <span className="inline-flex items-center gap-2">
                       {formattedPlate}
                       <span className="text-[11px] text-muted-foreground font-semibold">
@@ -183,7 +198,7 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
                             <button
                               type="button"
                               aria-label="Плохо распознан номер"
-                              className="inline-flex items-center text-amber-500 opacity-80 animate-pulse focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 rounded-sm"
+                              className="inline-flex items-center text-amber-500 opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 rounded-sm"
                             >
                               <AlertTriangle className="w-3.5 h-3.5" />
                             </button>
@@ -201,10 +216,10 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
                       )}
                     </span>
                   </td>
-                  <td className="py-4 px-4 text-[14px] font-medium text-foreground/80">
+                  <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground/80">
                     {ownerLabel}
                   </td>
-                  <td className="py-4 px-4">
+                  <td className="py-4 px-4 text-center">
                     <span
                       className={`inline-flex items-center px-3 py-1 rounded-full text-[13px] font-medium ${getStatusStyles(
                         event.status
@@ -221,16 +236,8 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
       </div>
 
       {/* Pagination */}
-      <div className="px-8 py-5 border-t border-border flex items-center justify-between bg-muted/20">
-        <p className="text-sm font-medium text-muted-foreground">Показано 1-8 из {events.length}</p>
-        <div className="flex items-center gap-2">
-          <button className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed">
-            <ChevronLeft className="w-4 h-4 text-foreground" strokeWidth={2} />
-          </button>
-          <button className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth">
-            <ChevronRight className="w-4 h-4 text-foreground" strokeWidth={2} />
-          </button>
-        </div>
+      <div className="px-8 pt-4 pb-2 border-t border-border flex items-center justify-center bg-muted/20">
+        <p className="text-sm font-medium text-muted-foreground text-center w-full -translate-y-[2px]">Показано 1-10 из {events.length}</p>
       </div>
     </div>
   );

@@ -10,6 +10,7 @@
 } from 'lucide-react';
 import { useAuth } from '@/auth/authContext';
 import { type RouteId } from '@/app/routesConfig';
+import { BrandLogo } from '@/app/components/brand-logo';
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -45,26 +46,33 @@ interface SidebarProps {
 export function Sidebar({ activePage, onNavigate }: SidebarProps) {
   const { user } = useAuth();
   const showExport = user?.role === 'office_admin';
-  const showAdminPages = user?.role !== 'guard';
+  const showAdminPages = user?.role === 'office_admin';
   const showMiscSection = showAdminPages || showExport;
 
   return (
     <div className="w-[240px] min-w-[240px] bg-white h-screen flex flex-col border-r border-border shadow-sm">
-      {/* Logo */}
-      <div className="px-6 py-5 border-b border-border flex-shrink-0">
-        <div className="flex items-center gap-1">
-          <span className="text-[18px] font-bold text-foreground tracking-tight">Мониторинг въездов</span>
-        </div>
-      </div>
-
       {/* Main Navigation */}
-      <nav className="flex-1 py-4 sidebar-scroll overflow-y-auto space-y-1">
-        <NavItem
-          icon={<Home className="w-[18px] h-[18px]" strokeWidth={2} />}
-          label="Главная"
-          isActive={activePage === 'dashboard'}
-          onClick={() => onNavigate('dashboard')}
-        />
+      <nav className="pt-0 pb-4 sidebar-scroll overflow-y-auto space-y-1">
+        {/* Logo */}
+        <div className="-mt-[64px] -mb-9 pb-0">
+          <div className="flex items-center justify-center">
+            <BrandLogo
+              className="h-60 w-60 object-contain"
+              fallbackClassName="text-[16px] font-semibold text-foreground tracking-tight"
+              showLabel={false}
+              showImage
+            />
+          </div>
+        </div>
+
+        <div className="-mt-20">
+          <NavItem
+            icon={<Home className="w-[18px] h-[18px]" strokeWidth={2} />}
+            label="Главная"
+            isActive={activePage === 'dashboard'}
+            onClick={() => onNavigate('dashboard')}
+          />
+        </div>
 
         <NavItem
           icon={<FileText className="w-[18px] h-[18px]" strokeWidth={2} />}

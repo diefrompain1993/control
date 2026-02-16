@@ -3,10 +3,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/app/components/ui/page-header';
 import { FilterBar } from '@/app/components/ui/filter-bar';
 import { Input } from '@/app/components/ui/input';
+import { DatePickerInput } from '@/app/components/ui/date-picker-input';
 import { Select } from '@/app/components/ui/select';
 import { Button } from '@/app/components/ui/button';
 import { getStoredAuditEntries, type AuditEntry } from '@/app/utils/auditLog';
-import { formatDateInput, normalizeDateInput } from '@/app/utils/dateFilter';
+import { formatDateInput, parseDateRange } from '@/app/utils/dateFilter';
 
 const mockAuditLog: AuditEntry[] = [
   {
@@ -43,6 +44,12 @@ const parseDateTimeToTimestamp = (value: string) => {
   return new Date(year, month - 1, day, hours, minutes, seconds).getTime();
 };
 
+const parseDateToTimestamp = (value: string) => {
+  const [day, month, year] = value.split('.').map((part) => Number(part));
+  if (!day || !month || !year) return 0;
+  return new Date(year, month - 1, day).getTime();
+};
+
 export function AuditLog() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState('');
@@ -57,7 +64,28 @@ export function AuditLog() {
   }, []);
 
   const filteredData = useMemo(() => {
-    const normalizedDate = normalizeDateInput(dateFilter);
+    const { start: dateStart, end: dateEnd } = parseDateRange(dateFilter);
+    const startTimestamp = dateStart.length === 10 ? parseDateToTimestamp(dateStart) : null;
+    const endTimestamp = dateEnd.length === 10 ? parseDateToTimestamp(dateEnd) : null;
+    const hasRange = startTimestamp !== null && endTimestamp !== null;
+    const matchesDateValue = (timestamp: string) => {
+      if (!dateStart && !dateEnd) return true;
+      const datePart = timestamp.split(' ')[0] ?? '';
+      if (hasRange) {
+        const valueTimestamp = parseDateToTimestamp(datePart);
+        const min = Math.min(startTimestamp!, endTimestamp!);
+        const max = Math.max(startTimestamp!, endTimestamp!);
+        return valueTimestamp >= min && valueTimestamp <= max;
+      }
+      if (startTimestamp !== null) {
+        return datePart === dateStart;
+      }
+      if (endTimestamp !== null) {
+        return datePart === dateEnd;
+      }
+      const partial = dateStart || dateEnd;
+      return partial ? datePart.startsWith(partial) : true;
+    };
 
     return allEntries.filter((entry) => {
       const matchesSearch =
@@ -73,7 +101,7 @@ export function AuditLog() {
         (actionFilter === 'edit' && actionLower.includes('измен')) ||
         (actionFilter === 'delete' && actionLower.includes('удал'));
 
-      const matchesDate = !normalizedDate || entry.timestamp.startsWith(normalizedDate);
+      const matchesDate = matchesDateValue(entry.timestamp);
 
       return matchesSearch && matchesAction && matchesDate;
     });
@@ -121,8 +149,8 @@ export function AuditLog() {
       />
 
       <FilterBar>
-        <form onSubmit={handleFilterSubmit}>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
+        <form onSubmit={handleFilterSubmit} className="flex flex-wrap gap-4 items-end">
+          <div className="flex-1 min-w-[240px] max-w-[420px]">
             <Input
               label="Поиск по пользователю или объекту"
               value={searchQuery}
@@ -130,7 +158,9 @@ export function AuditLog() {
               placeholder="Введите имя или объект"
               icon={<Search className="w-4 h-4" />}
             />
+          </div>
 
+          <div className="flex-1 min-w-[200px]">
             <Select
               label="Тип действия"
               value={actionFilter}
@@ -141,22 +171,24 @@ export function AuditLog() {
                 { value: 'edit', label: 'Изменение' },
                 { value: 'delete', label: 'Удаление' }
               ]}
-              size="sm"
+              size="md"
             />
+          </div>
 
-            <Input
+          <div className="flex-1 min-w-[200px]">
+            <DatePickerInput
               label="Дата"
               value={dateFilter}
               onChange={(value) => setDateFilter(formatDateInput(value))}
               placeholder="ДД.ММ.ГГГГ"
             />
+          </div>
 
-            <div className="flex items-end gap-2">
-              <Button type="submit">Применить</Button>
-              <Button type="button" variant="destructive" onClick={handleResetFilters}>
-                Сбросить
-              </Button>
-            </div>
+          <div className="flex items-end gap-2">
+            <Button type="submit">Применить</Button>
+            <Button type="button" variant="destructive" onClick={handleResetFilters}>
+              Сбросить
+            </Button>
           </div>
         </form>
       </FilterBar>
@@ -171,11 +203,11 @@ export function AuditLog() {
           <table className="w-full table-fixed">
             <thead>
               <tr className="bg-muted/20 border-b border-border">
-                <th className="text-left py-4 px-4 text-[12px] font-bold uppercase tracking-wider">
+                <th className="text-center py-4 px-4 text-[12px] font-bold uppercase tracking-wider">
                   <button
                     type="button"
                     onClick={() => setDateSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                    className="inline-flex items-center gap-1 text-foreground/70 hover:text-foreground transition-colors"
+                    className="inline-flex items-center justify-center gap-1 text-foreground/70 hover:text-foreground transition-colors text-[12px] font-bold uppercase tracking-wider"
                   >
                     Дата и время
                     {dateSort === 'asc' ? (
@@ -185,16 +217,16 @@ export function AuditLog() {
                     )}
                   </button>
                 </th>
-                <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Пользователь
                 </th>
-                <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Действие
                 </th>
-                <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Объект
                 </th>
-                <th className="text-left py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Детали
                 </th>
               </tr>
@@ -206,17 +238,19 @@ export function AuditLog() {
                     key={index}
                     className="border-b border-border/50 hover:bg-muted/30 transition-smooth"
                   >
-                    <td className="py-4 px-4 text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
+                    <td className="py-4 px-4 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
                       {entry.timestamp}
                     </td>
-                    <td className="py-4 px-4 text-[14px] font-medium text-foreground">
+                    <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground">
                       {entry.user}
                     </td>
-                    <td className="py-4 px-4 text-[14px] text-foreground/80">{entry.action}</td>
-                    <td className="py-4 px-4 text-[14px] font-medium text-foreground">
+                    <td className="py-4 px-4 text-center text-[14px] text-foreground/80">
+                      {entry.action}
+                    </td>
+                    <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground">
                       {entry.target}
                     </td>
-                    <td className="py-4 px-4 text-[14px] text-foreground/70">
+                    <td className="py-4 px-4 text-center text-[14px] text-foreground/70">
                       {entry.details}
                     </td>
                   </tr>

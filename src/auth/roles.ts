@@ -8,6 +8,5 @@ export const roleLabels: Record<Role, string> = {
 
 export const hasRole = (user: User | null, roles: Role[]) => {
   if (!user) return false;
-  if (user.role === 'admin') return true;
   return roles.includes(user.role);
 };

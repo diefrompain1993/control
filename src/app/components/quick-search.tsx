@@ -1,6 +1,6 @@
 ﻿import { ArrowRight, MessageSquare, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { formatPlateNumber } from '@/app/utils/plate';
+import { formatPlateNumber, getPlateRegionCode } from '@/app/utils/plate';
 import { BASE_VEHICLES } from '@/app/data/vehicles';
 import { getStoredVehicles, mergeVehicles, type StoredVehicle } from '@/app/utils/vehicleStore';
 import {
@@ -157,8 +157,8 @@ export function QuickSearch({ className }: QuickSearchProps) {
           <div className="flex items-center gap-4 mb-3 flex-wrap">
             <span className="text-sm text-foreground/70">
               Найдено:{' '}
-              <strong className="text-foreground">
-                {formatPlateNumber(foundVehicle.plateNumber)}
+              <strong className="text-foreground plate-text">
+                {formatPlateNumber(foundVehicle.plateNumber)} ({getPlateRegionCode(foundVehicle.plateNumber)})
               </strong>
             </span>
             <span
@@ -213,8 +213,8 @@ export function QuickSearch({ className }: QuickSearchProps) {
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-slate-600 font-medium">Номер:</span>
-                <span className="text-slate-900 font-semibold">
-                  {formatPlateNumber(foundVehicle.plateNumber)}
+                <span className="text-slate-900 plate-text">
+                  {formatPlateNumber(foundVehicle.plateNumber)} ({getPlateRegionCode(foundVehicle.plateNumber)})
                 </span>
               </div>
               <div className="flex items-center gap-2">

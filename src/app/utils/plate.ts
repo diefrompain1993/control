@@ -104,6 +104,14 @@ export const formatPlateNumber = (value: string) => {
   return formatByCountry(normalized, info.code);
 };
 
+export const getPlateRegionCode = (value: string) => {
+  const info = getPlateCountryInfo(value);
+  return info.code === 'UNKNOWN' ? 'CIS' : info.code;
+};
+
+export const formatPlateWithRegion = (value: string) =>
+  `${formatPlateNumber(value)} (${getPlateRegionCode(value)})`;
+
 export const getPlateCountryInfo = (value: string) => {
   const trimmed = value.trim();
   const prefixMatch = trimmed.match(PLATE_COUNTRY_PREFIX);

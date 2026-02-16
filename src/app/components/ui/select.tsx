@@ -25,8 +25,8 @@ export function Select({
   size = 'md'
 }: SelectProps) {
   const sizeStyles = {
-    sm: 'px-3 py-1.5 text-[13px]',
-    md: 'px-3 py-2 text-sm'
+    sm: 'h-9 px-3 py-1.5 text-[13px]',
+    md: 'h-10 px-3 py-2 text-sm'
   };
 
   return (

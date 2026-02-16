@@ -77,6 +77,7 @@ export function Users() {
     return getAllUsers().map((entry) => ({
       fullName: entry.fullName,
       email: entry.email,
+      password: entry.password,
       role: entry.role,
       lastLogin: getLastLoginByEmail(entry.email) ?? entry.lastLogin ?? '—'
     }));
@@ -575,10 +576,11 @@ export function Users() {
             <colgroup>
               {canManageUser ? (
                 <>
-                  <col style={{ width: '20%' }} />
-                  <col style={{ width: '22%' }} />
-                  <col style={{ width: '20%' }} />
-                  <col style={{ width: '26%' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '21%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '17%' }} />
                   <col style={{ width: '12%' }} />
                 </>
               ) : (
@@ -592,23 +594,32 @@ export function Users() {
             </colgroup>
             <thead>
               <tr className="bg-muted/20 border-b border-border">
-                <th className="text-left py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Пользователь
                 </th>
-                <th className="text-left py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Email
                 </th>
-                <th className="text-left py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                {canManageUser && (
+                  <th className="text-center py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                    Пароль
+                  </th>
+                )}
+                <th className="text-center py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Роль
                 </th>
-                <th className="text-left py-4 px-6 text-[12px] font-bold uppercase tracking-wider">
-                  <div className="inline-flex items-center gap-1 text-foreground/70">
+                <th className="text-center py-4 px-6 text-[12px] font-bold uppercase tracking-wider">
+                  <div
+                    className="inline-flex items-center justify-center gap-1 text-foreground/70 hover:text-foreground cursor-pointer select-none text-[12px] font-bold uppercase tracking-wider"
+                    onClick={() => setLastLoginSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                  >
                     Последний вход
                     <button
                       type="button"
-                      onClick={() =>
-                        setLastLoginSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-                      }
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setLastLoginSort((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+                      }}
                       className="inline-flex items-center hover:text-foreground transition-colors"
                       aria-label="Сортировать"
                     >
@@ -621,7 +632,7 @@ export function Users() {
                   </div>
                 </th>
                 {canManageUser && (
-                  <th className="text-left py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                  <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                     Действия
                   </th>
                 )}
@@ -633,19 +644,28 @@ export function Users() {
                   key={entry.email}
                   className="border-b border-border/50 hover:bg-muted/30 transition-smooth"
                 >
-                  <td className="py-4 px-6 text-[14px] font-medium text-foreground">
+                  <td className="py-4 px-6 text-center text-[14px] font-medium text-foreground">
                     {getNameWithInitials(entry.fullName, entry.fullName)}
                   </td>
-                  <td className="py-4 px-6 text-[14px] text-foreground/80">{entry.email}</td>
-                  <td className="py-4 px-6 text-[14px] text-foreground/80">
-                    {roleLabels[entry.role]}
+                  <td className="py-4 px-6 text-center text-[14px] text-foreground/80">
+                    {entry.email}
                   </td>
-                  <td className="py-4 px-6 text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
+                  {canManageUser && (
+                    <td className="py-4 px-6 text-center text-[14px] text-foreground/80 font-mono">
+                      {entry.password || '—'}
+                    </td>
+                  )}
+                  <td className="py-4 px-6 text-center text-[14px] text-foreground/80">
+                    <span className="inline-flex min-w-[140px] justify-center rounded-full bg-slate-100 px-3 py-1 text-[13px] font-medium text-foreground/80">
+                      {roleLabels[entry.role]}
+                    </span>
+                  </td>
+                  <td className="py-4 px-6 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
                     {entry.lastLogin}
                   </td>
                   {canManageUser && (
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
+                    <td className="py-4 px-4 text-center">
+                      <div className="flex items-center justify-center gap-3">
                         <button
                           type="button"
                           onClick={() => openEditDialog(entry.email)}

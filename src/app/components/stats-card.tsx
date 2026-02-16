@@ -59,12 +59,14 @@ export function StatsCard({ title, count, icon, color, onClick }: StatsCardProps
           : undefined
       }
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-center justify-between">
         <div className="flex-1">
-          <p className="text-sm font-medium text-foreground/60 mb-1 tracking-tight">{title}</p>
+          <p className="text-sm font-medium text-foreground/80 mb-1 tracking-tight">{title}</p>
           <h3 className="text-3xl font-bold text-foreground tracking-tight">{count}</h3>
         </div>
-        <div className={`${config.iconBg} p-3 rounded-xl ${config.iconColor} group-hover:scale-110 transition-smooth`}>
+        <div
+          className={`${config.iconBg} w-11 h-11 shrink-0 rounded-xl ${config.iconColor} flex items-center justify-center group-hover:scale-110 transition-smooth`}
+        >
           {icon}
         </div>
       </div>

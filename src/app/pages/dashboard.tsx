@@ -4,6 +4,7 @@ import { QuickSearch } from '@/app/components/quick-search';
 import { useAuth } from '@/auth/authContext';
 import { Users2, ShieldCheck, ShieldAlert, Building2 } from 'lucide-react';
 import type { RouteId } from '@/app/routesConfig';
+import { formatPlateNumber, getPlateRegionCode } from '@/app/utils/plate';
 
 interface DashboardProps {
   onNavigate?: (page: RouteId) => void;
@@ -17,6 +18,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const contractors = 19;
   const total = whiteList + blackList + noList + contractors;
   const showStats = user?.role === 'office_admin';
+  const lastEntry = {
+    time: '12:41:23',
+    plateNumber: 'A123BC',
+    owner: 'Иванов И.И.'
+  };
 
   return (
     <div className="space-y-8">
@@ -55,11 +61,43 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       )}
       
       {/* Events Table + Quick Search */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-[390px_minmax(0,1fr)] gap-6 items-start">
+        <div className="flex flex-col gap-6">
+          <div className="w-full xl:aspect-square bg-white rounded-xl border border-border shadow-sm p-8 flex flex-col gap-4">
+            <h2 className="text-[20px] font-bold text-foreground tracking-tight">
+              Последний въезд
+            </h2>
+            <div className="flex-1 min-h-0 rounded-xl overflow-hidden border border-border">
+              <img
+                src="/last-entry-car.jpg"
+                alt="Последний въезд"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="grid gap-2 text-sm text-foreground/70">
+              <div className="flex items-center justify-between gap-3">
+                <span>Время въезда</span>
+                <span className="text-foreground font-semibold font-mono">
+                  {lastEntry.time}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Номер</span>
+                <span className="text-foreground plate-text">
+                  {formatPlateNumber(lastEntry.plateNumber)} ({getPlateRegionCode(lastEntry.plateNumber)})
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Владелец</span>
+                <span className="text-foreground font-semibold">{lastEntry.owner}</span>
+              </div>
+            </div>
+          </div>
+          <QuickSearch className="w-full xl:h-[340px] xl:overflow-auto" />
+        </div>
         <div className="min-w-0">
           <EventsTable onViewAll={() => onNavigate?.('events')} />
         </div>
-        <QuickSearch className="w-full xl:aspect-square xl:overflow-auto" />
       </div>
     </div>
   );

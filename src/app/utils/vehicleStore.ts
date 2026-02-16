@@ -4,6 +4,8 @@ export interface StoredVehicle {
   id: string;
   category: VehicleCategory;
   plateNumber: string;
+  region?: string;
+  country?: string;
   owner: string;
   addedDate: string;
   notes?: string;
@@ -100,6 +102,8 @@ export const addStoredVehicle = (
     id: createId(),
     category,
     plateNumber: data.plateNumber,
+    region: data.region,
+    country: data.country,
     owner: data.owner,
     notes: data.notes,
     addedDate: formatDate(new Date())

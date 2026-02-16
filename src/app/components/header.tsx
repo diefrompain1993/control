@@ -2,6 +2,7 @@
 import type { User } from '@/auth/types';
 import { roleLabels } from '@/auth/roles';
 import { getNameWithInitials } from '@/app/utils/name';
+import { BrandLogo } from '@/app/components/brand-logo';
 
 interface HeaderProps {
   user: User | null;
@@ -16,7 +17,11 @@ export function Header({ user, onLogout }: HeaderProps) {
     <header className="h-[72px] bg-white border-b border-border flex items-center justify-between px-8 shadow-sm flex-shrink-0">
       {/* Page Title */}
       <div className="flex items-center">
-        <h1 className="text-[20px] font-bold text-foreground tracking-tight">Мониторинг въездов</h1>
+        <BrandLogo
+          showImage={false}
+          showLabel
+          labelClassName="text-[18px] font-semibold text-foreground tracking-tight"
+        />
       </div>
 
       {/* Right Side */}
