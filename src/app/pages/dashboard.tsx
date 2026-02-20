@@ -12,13 +12,14 @@ interface DashboardProps {
 
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { user } = useAuth();
+  const canViewOwnerNames = user?.role !== 'guard';
   const whiteList = 24;
   const blackList = 3;
   const noList = 12;
   const contractors = 19;
   const total = whiteList + blackList + noList + contractors;
   const showStats = user?.role === 'office_admin';
-  const showLastEntry = user?.role === 'guard';
+  const showLastEntry = user?.role === 'guard' || user?.role === 'admin';
   const lastEntry = {
     time: '12:41:23',
     plateNumber: 'A123BC77',
@@ -89,14 +90,16 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     {formatPlateNumber(lastEntry.plateNumber)} ({getPlateCountryCode(lastEntry.plateNumber)})
                   </span>
                 </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span>Владелец</span>
-                  <span className="text-foreground font-semibold">{lastEntry.owner}</span>
-                </div>
+                {canViewOwnerNames && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Владелец</span>
+                    <span className="text-foreground font-semibold">{lastEntry.owner}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
-          <QuickSearch className="w-full xl:h-[340px] xl:overflow-auto mt-[2px]" />
+          <QuickSearch className="w-full xl:h-[340px] overflow-hidden mt-[2px]" />
         </div>
         <div className="min-w-0">
           <EventsTable onViewAll={() => onNavigate?.('events')} />

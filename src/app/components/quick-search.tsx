@@ -1,10 +1,11 @@
-﻿import { ArrowRight, MessageSquare, Search } from 'lucide-react';
+import { ArrowRight, MessageSquare, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatPlateNumber, getPlateCountryCode } from '@/app/utils/plate';
 import { BASE_VEHICLES } from '@/app/data/vehicles';
 import { MOCK_EVENTS, type EventLogEntry } from '@/app/data/events';
 import { getStoredVehicles, mergeVehicles, type StoredVehicle } from '@/app/utils/vehicleStore';
 import { getRoutePath } from '@/app/routesConfig';
+import { useAuth } from '@/auth/authContext';
 import {
   Dialog,
   DialogContent,
@@ -20,8 +21,8 @@ interface QuickSearchProps {
 }
 
 type SearchResult =
-  | { status: 'found'; vehicle: StoredVehicle }
-  | { status: 'found_event'; event: EventLogEntry }
+  | { status: 'found'; vehicles: StoredVehicle[] }
+  | { status: 'found_event'; events: EventLogEntry[] }
   | { status: 'not_found'; plateNumber: string };
 
 let lastQuickSearchPlate = '';
@@ -123,6 +124,8 @@ const normalizePlateForSearch = (value: string) =>
     );
 
 export function QuickSearch({ className }: QuickSearchProps) {
+  const { user } = useAuth();
+  const canViewOwnerNames = user?.role !== 'guard';
   const [plateNumber, setPlateNumber] = useState(() => lastQuickSearchPlate);
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -145,7 +148,7 @@ export function QuickSearch({ className }: QuickSearchProps) {
     }
 
     const vehicles = mergeVehicles(baseVehicles, getStoredVehicles());
-    const found = vehicles.find((vehicle) => {
+    const vehicleMatches = vehicles.filter((vehicle) => {
       const normalizedVehicle = normalizePlateForSearch(vehicle.plateNumber);
       return (
         normalizedVehicle === normalizedPlate ||
@@ -154,8 +157,8 @@ export function QuickSearch({ className }: QuickSearchProps) {
       );
     });
 
-    if (found) {
-      setSearchResult({ status: 'found', vehicle: found });
+    if (vehicleMatches.length > 0) {
+      setSearchResult({ status: 'found', vehicles: vehicleMatches });
       return;
     }
 
@@ -178,7 +181,7 @@ export function QuickSearch({ className }: QuickSearchProps) {
     }).sort((a, b) => parseEventTimestamp(b) - parseEventTimestamp(a));
 
     if (matchedEvents.length > 0) {
-      setSearchResult({ status: 'found_event', event: matchedEvents[0] });
+      setSearchResult({ status: 'found_event', events: matchedEvents });
       return;
     }
 
@@ -202,23 +205,14 @@ export function QuickSearch({ className }: QuickSearchProps) {
     if (e.key === 'Enter') handleSearch();
   };
 
-  const foundVehicle = searchResult?.status === 'found' ? searchResult.vehicle : null;
-  const foundEvent = searchResult?.status === 'found_event' ? searchResult.event : null;
+  const foundVehicles = searchResult?.status === 'found' ? searchResult.vehicles : [];
+  const foundEvents = searchResult?.status === 'found_event' ? searchResult.events : [];
+  const foundVehicle = foundVehicles[0] ?? null;
   const noteText = foundVehicle?.notes?.trim() ?? '';
   const hasNote = Boolean(noteText) && noteText !== '-' && noteText !== '—';
-  const listLabel = foundVehicle
-    ? categoryShortLabels[foundVehicle.category]
-    : foundEvent
-    ? statusShortLabels[foundEvent.status]
-    : '';
-  const listColor = foundVehicle
-    ? categoryTextColors[foundVehicle.category]
-    : foundEvent
-    ? statusTextColors[foundEvent.status]
-    : 'text-muted-foreground';
-  const hasFoundResult =
-    searchResult?.status === 'found' || searchResult?.status === 'found_event';
+  const hasFoundResult = foundVehicles.length > 0 || foundEvents.length > 0;
   const hasNotFound = searchResult?.status === 'not_found';
+  const canOpenNote = foundVehicles.length === 1 && hasNote;
 
   useEffect(() => {
     const stored = readStoredQuickSearch();
@@ -232,27 +226,77 @@ export function QuickSearch({ className }: QuickSearchProps) {
   }, [runSearch]);
 
   const handleOpenCard = () => {
-    if (!foundVehicle && !foundEvent) return;
+    if (!hasFoundResult) return;
+
     const params = new URLSearchParams();
-    if (foundVehicle) {
-      params.set('plate', foundVehicle.plateNumber);
-      if (foundVehicle.owner) {
-        params.set('owner', foundVehicle.owner);
-      }
-      params.set('status', statusByCategory[foundVehicle.category]);
+
+    const matchedPlates =
+      foundVehicles.length > 0
+        ? Array.from(new Set(foundVehicles.map((vehicle) => vehicle.plateNumber)))
+        : Array.from(new Set(foundEvents.map((event) => event.plateNumber)));
+
+    if (matchedPlates.length === 1) {
+      params.set('plate', matchedPlates[0]);
+    } else if (matchedPlates.length > 1) {
+      params.set('plates', matchedPlates.join(','));
     }
-    if (foundEvent) {
-      params.set('plate', foundEvent.plateNumber);
-      if (foundEvent.owner) {
-        params.set('owner', foundEvent.owner);
-      }
-      params.set('status', foundEvent.status);
+
+    const matchedStatuses =
+      foundVehicles.length > 0
+        ? Array.from(
+            new Set(foundVehicles.map((vehicle) => statusByCategory[vehicle.category]))
+          )
+        : Array.from(new Set(foundEvents.map((event) => event.status)));
+
+    if (matchedStatuses.length === 1) {
+      params.set('status', matchedStatuses[0]);
     }
+
+    if (canViewOwnerNames) {
+      const owners =
+        foundVehicles.length > 0
+          ? Array.from(
+              new Set(
+                foundVehicles
+                  .map((vehicle) => vehicle.owner)
+                  .filter((owner) => owner.trim() !== '')
+              )
+            )
+          : Array.from(
+              new Set(
+                foundEvents
+                  .map((event) => event.owner)
+                  .filter((owner) => owner.trim() !== '')
+              )
+            );
+
+      if (owners.length === 1) {
+        params.set('owner', owners[0]);
+      }
+    }
+
     const url = `${getRoutePath('events')}?${params.toString()}`;
     setDetailsOpen(false);
     window.history.pushState({}, '', url);
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
+
+  const resultItems =
+    foundVehicles.length > 0
+      ? foundVehicles.map((vehicle, index) => ({
+          key: `vehicle-${vehicle.id}-${index}`,
+          plateNumber: vehicle.plateNumber,
+          country: vehicle.country,
+          listLabel: categoryShortLabels[vehicle.category],
+          listColor: categoryTextColors[vehicle.category]
+        }))
+      : foundEvents.map((event, index) => ({
+          key: `event-${event.date}-${event.time}-${event.plateNumber}-${index}`,
+          plateNumber: event.plateNumber,
+          country: '',
+          listLabel: statusShortLabels[event.status],
+          listColor: statusTextColors[event.status]
+        }));
 
   return (
     <div
@@ -263,7 +307,7 @@ export function QuickSearch({ className }: QuickSearchProps) {
       </h2>
 
       <div className="flex flex-1 flex-col min-h-0">
-        <div className="mt-[20px] mb-5 flex flex-col items-start">
+        <div className="mt-3 mb-4 flex flex-col items-start">
           <label className="block text-sm font-medium text-muted-foreground mb-2 pl-[2px]">
             Введите номер:
           </label>
@@ -305,37 +349,37 @@ export function QuickSearch({ className }: QuickSearchProps) {
           </div>
         </div>
 
-        {hasFoundResult && (foundVehicle || foundEvent) && (
-          <div className="border-t border-border pt-5 flex flex-col flex-1">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-3 text-sm text-foreground/70 whitespace-nowrap">
-                <span className="inline-flex items-center gap-2">
-                  Найдено:
-                  <span className="inline-flex items-center gap-2 text-foreground plate-text whitespace-nowrap">
-                    {formatPlateNumber(foundVehicle?.plateNumber ?? foundEvent!.plateNumber)}
-                    <span className="text-[11px] text-foreground/70 font-semibold">
-                      ({getPlateCountryCode(
-                        foundVehicle?.plateNumber ?? foundEvent!.plateNumber,
-                        foundVehicle?.country
-                      )})
+        {hasFoundResult && resultItems.length > 0 && (
+          <div className="border-t border-border pt-4 flex flex-col flex-1">
+            <div className="flex flex-col gap-2 text-sm text-foreground/70">
+              <div className="flex items-center gap-2">
+                <span>Найдено событий:</span>
+                <span className="font-semibold text-foreground">{resultItems.length}</span>
+              </div>
+              <div className="max-h-32 pr-1 space-y-1">
+                {resultItems.map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-start gap-2 whitespace-nowrap"
+                  >
+                    <span className="inline-flex items-center gap-2 text-foreground plate-text">
+                      {formatPlateNumber(item.plateNumber)}
+                      <span className="text-[11px] text-foreground/70 font-semibold">
+                        ({getPlateCountryCode(item.plateNumber, item.country)})
+                      </span>
                     </span>
-                  </span>
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  Список:
-                  <span className={`font-semibold ${listColor}`}>
-                    {listLabel}
-                  </span>
-                </span>
+                    <span className={`ml-2 font-semibold ${item.listColor}`}>Список: {item.listLabel}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
             <button
               type="button"
-              onClick={() => hasNote && setDetailsOpen(true)}
-              disabled={!hasNote}
+              onClick={() => canOpenNote && setDetailsOpen(true)}
+              disabled={!canOpenNote}
               className={`mt-4 flex items-center gap-1.5 text-sm transition-smooth ${
-                hasNote
+                canOpenNote
                   ? 'text-primary hover:text-primary/80'
                   : 'text-muted-foreground/60 cursor-not-allowed'
               }`}
@@ -346,14 +390,14 @@ export function QuickSearch({ className }: QuickSearchProps) {
             <button
               type="button"
               onClick={handleOpenCard}
-              disabled={!foundVehicle && !foundEvent}
-              className={`mt-auto pb-7 translate-y-[28px] text-sm font-semibold flex items-center gap-1.5 transition-smooth group ${
-                foundVehicle || foundEvent
+              disabled={!hasFoundResult}
+              className={`mt-8 text-sm font-semibold flex items-center gap-1.5 transition-smooth group ${
+                hasFoundResult
                   ? 'text-primary hover:text-primary/80'
                   : 'text-muted-foreground/60'
               }`}
             >
-              Открыть карточку
+              Открыть в журнале
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-smooth" />
             </button>
           </div>
@@ -366,13 +410,13 @@ export function QuickSearch({ className }: QuickSearchProps) {
         )}
       </div>
 
-      {foundVehicle && (
+      {foundVehicles.length === 1 && foundVehicle && (
         <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Информация о примечании</DialogTitle>
               <DialogDescription className="text-foreground font-medium">
-                Детали автомобиля и владельца.
+                {canViewOwnerNames ? 'Детали автомобиля и владельца.' : 'Детали автомобиля.'}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 text-sm">
@@ -390,10 +434,12 @@ export function QuickSearch({ className }: QuickSearchProps) {
                   {categoryShortLabels[foundVehicle.category]}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-600 font-medium">Владелец:</span>
-                <span className="text-slate-900 font-semibold">{foundVehicle.owner}</span>
-              </div>
+              {canViewOwnerNames && (
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-600 font-medium">Владелец:</span>
+                  <span className="text-slate-900 font-semibold">{foundVehicle.owner}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <span className="text-slate-600 font-medium">Дата добавления:</span>
                 <span className="text-slate-900 font-semibold">

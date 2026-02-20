@@ -1,4 +1,4 @@
-﻿import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { DateRange } from 'react-day-picker';
 import { ru } from 'date-fns/locale';
@@ -13,6 +13,7 @@ interface DatePickerInputProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  mode?: 'range' | 'single';
 }
 
 const formatDateValue = (date: Date) => {
@@ -94,17 +95,44 @@ const parseRangeValue = (value: string): DateRange | undefined => {
   return undefined;
 };
 
+const normalizeSingleInputValue = (value: string) => {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const firstDashIndex = value.search(/[-\u2013\u2014]/);
+  if (firstDashIndex >= 0) {
+    return value.slice(0, firstDashIndex).trim();
+  }
+  const separatorMatch = value.match(RANGE_SEPARATOR_REGEX);
+  if (!separatorMatch || separatorMatch.index === undefined) {
+    return value;
+  }
+  return value.slice(0, separatorMatch.index).trim();
+};
+
+const finalizeSingleDateInput = (value: string) => {
+  const normalized = normalizeSingleInputValue(value).trim();
+  if (!normalized) return '';
+  const parsed = parseSingleDateValue(normalized);
+  if (!parsed) return normalized;
+  return formatDateValue(parsed);
+};
+
 export function DatePickerInput({
   label,
   value,
   onChange,
   placeholder,
   disabled = false,
-  className
+  className,
+  mode = 'range'
 }: DatePickerInputProps) {
   const [open, setOpen] = useState(false);
   const inputWrapperRef = useRef<HTMLDivElement | null>(null);
   const selectedRange = useMemo(() => parseRangeValue(value), [value]);
+  const selectedDate = useMemo(() => parseSingleDateValue(value), [value]);
   const startLabel = selectedRange?.from ? formatLongDate(selectedRange.from) : '—';
   const endLabel = selectedRange?.to ? formatLongDate(selectedRange.to) : '—';
   const currentYear = new Date().getFullYear();
@@ -150,9 +178,23 @@ export function DatePickerInput({
     }
   };
 
+  const handleSelectSingle = (date: Date | undefined) => {
+    if (!date) {
+      onChange('');
+      return;
+    }
+
+    if (selectedDate && isSameDay(selectedDate, date)) {
+      onChange('');
+      return;
+    }
+
+    onChange(formatDateValue(date));
+  };
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
-      const finalized = finalizeDateInput(value);
+      const finalized = mode === 'single' ? finalizeSingleDateInput(value) : finalizeDateInput(value);
       if (finalized !== value) {
         onChange(finalized);
       }
@@ -168,7 +210,13 @@ export function DatePickerInput({
           <input
             type="text"
             value={value}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) => {
+              const nextValue =
+                mode === 'single'
+                  ? normalizeSingleInputValue(event.target.value)
+                  : event.target.value;
+              onChange(nextValue);
+            }}
             onFocus={() => {
               if (!disabled) {
                 setOpen(true);
@@ -236,33 +284,46 @@ export function DatePickerInput({
             </div>
           </div>
           <div className="px-4 pb-3 pt-3 border-b border-gray-200">
-            <div className="grid grid-cols-2 gap-4">
+            {mode === 'single' ? (
               <div>
-                <div className="text-[11px] uppercase tracking-wide text-slate-500">Дата начала</div>
+                <div className="text-[11px] uppercase tracking-wide text-slate-500">Выбранная дата</div>
                 <div
                   className={`text-lg font-semibold ${
-                    selectedRange?.from ? 'text-slate-900' : 'text-slate-400'
+                    selectedDate ? 'text-slate-900' : 'text-slate-400'
                   }`}
                 >
-                  {startLabel}
+                  {selectedDate ? formatLongDate(selectedDate) : '—'}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-[11px] uppercase tracking-wide text-slate-500">Дата окончания</div>
-                <div
-                  className={`text-lg font-semibold ${
-                    selectedRange?.to ? 'text-slate-900' : 'text-slate-400'
-                  }`}
-                >
-                  {endLabel}
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">Дата начала</div>
+                  <div
+                    className={`text-lg font-semibold ${
+                      selectedRange?.from ? 'text-slate-900' : 'text-slate-400'
+                    }`}
+                  >
+                    {startLabel}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">Дата окончания</div>
+                  <div
+                    className={`text-lg font-semibold ${
+                      selectedRange?.to ? 'text-slate-900' : 'text-slate-400'
+                    }`}
+                  >
+                    {endLabel}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
           <Calendar
-            mode="range"
-            selected={selectedRange}
-            onSelect={handleSelect}
+            mode={mode}
+            selected={mode === 'single' ? selectedDate : selectedRange}
+            onSelect={mode === 'single' ? handleSelectSingle : handleSelect}
             locale={ru}
             weekStartsOn={1}
             captionLayout="dropdown"

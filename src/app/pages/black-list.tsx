@@ -9,11 +9,16 @@ import { Button } from '@/app/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { useAuth } from '@/auth/authContext';
 import {
-    formatPlateNumber,
+  buildPlateNumber,
+  formatPlateNumber,
+  formatPlateNumberWithRegion,
   formatPlateWithCountryCode,
   getPlateCountryCode,
   normalizePlateNumber
 } from '@/app/utils/plate';
+import {
+  parseDateToTimestamp as parseAccessDateToTimestamp
+} from '@/app/utils/contractorAccess';
 import { BASE_VEHICLES } from '@/app/data/vehicles';
 import {
   addStoredVehicle,
@@ -41,9 +46,17 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger
+  DialogTitle
 } from '@/app/components/ui/dialog';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger
+} from '@/app/components/ui/drawer';
 
 const parseDateToTimestamp = (value: string) => {
   const [day, month, year] = value.split('.').map((part) => Number(part));
@@ -68,6 +81,7 @@ const categoryAuditLabels: Record<StoredVehicle['category'], string> = {
 export function BlackList() {
   const { user } = useAuth();
   const canManage = user?.role === 'office_admin';
+  const canViewOwnerNames = user?.role !== 'guard';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchSuggestionsOpen, setSearchSuggestionsOpen] = useState(false);
@@ -87,6 +101,8 @@ export function BlackList() {
     plateNumber: '',
     region: '',
     country: '',
+    accessFrom: '',
+    accessTo: '',
     notes: '',
     category: DEFAULT_CATEGORY
   });
@@ -95,6 +111,8 @@ export function BlackList() {
     plateNumber?: string;
     region?: string;
     country?: string;
+    accessFrom?: string;
+    accessTo?: string;
     category?: string;
   }>({});
   const [countrySuggestionsOpen, setCountrySuggestionsOpen] = useState(false);
@@ -143,6 +161,7 @@ export function BlackList() {
   }, [categoryVehicles, searchQuery]);
 
   const ownerSuggestions = useMemo(() => {
+    if (!canViewOwnerNames) return [];
     const query = searchQuery.trim();
     if (!query) return [];
     const rawQuery = query.toLowerCase();
@@ -169,7 +188,7 @@ export function BlackList() {
     });
 
     return Array.from(unique, ([label, value]) => ({ label, value })).slice(0, 6);
-  }, [categoryVehicles, searchQuery]);
+  }, [canViewOwnerNames, categoryVehicles, searchQuery]);
 
   const selectedVehicles = useMemo(
     () =>
@@ -188,12 +207,13 @@ export function BlackList() {
   );
   const filteredCountries = useMemo(() => {
     const query = form.country.trim().toLowerCase();
-    if (!query) return PLATE_COUNTRY_OPTIONS;
-    return PLATE_COUNTRY_OPTIONS.filter(
+    const filtered = PLATE_COUNTRY_OPTIONS.filter(
       (option) =>
+        !query ||
         option.label.toLowerCase().startsWith(query) ||
         option.value.toLowerCase().startsWith(query)
     );
+    return filtered.slice(0, 8);
   }, [form.country]);
 
   const handleSelectRow = (vehicle: StoredVehicle) => {
@@ -244,13 +264,13 @@ export function BlackList() {
       const matchesPlateNumber = normalizedQuery
         ? normalizePlateNumber(vehicle.plateNumber).includes(normalizedQuery)
         : false;
-      const matchesOwner = vehicle.owner.toLowerCase().includes(rawQuery);
+      const matchesOwner = canViewOwnerNames && vehicle.owner.toLowerCase().includes(rawQuery);
       const matchesSearch = !rawQuery || matchesPlateNumber || matchesOwner;
       const matchesDate = matchesDateValue(vehicle.addedDate);
       const matchesCategory = vehicle.category === DEFAULT_CATEGORY;
       return matchesSearch && matchesDate && matchesCategory;
     });
-  }, [searchQuery, dateFilter, vehicles]);
+  }, [canViewOwnerNames, searchQuery, dateFilter, vehicles]);
 
   const sortedData = useMemo(() => {
     const next = [...filteredData];
@@ -270,7 +290,9 @@ export function BlackList() {
     if (!query) return null;
     const normalized = normalizePlateNumber(query);
     const looksLikePlate = normalized.length >= 4 && /\d/.test(normalized);
-    return looksLikePlate ? { plate: query } : { owner: query };
+    if (looksLikePlate) return { plate: query };
+    if (!canViewOwnerNames) return null;
+    return { owner: query };
   };
 
   const handleViewEntries = () => {
@@ -279,7 +301,9 @@ export function BlackList() {
     if (selectedRowIds.length > 0 && selectedVehicles.length > 0) {
       if (selectedVehicles.length === 1) {
         params.set('plate', selectedVehicles[0].plateNumber);
-        params.set('owner', selectedVehicles[0].owner);
+        if (canViewOwnerNames) {
+          params.set('owner', selectedVehicles[0].owner);
+        }
       } else {
         params.set(
           'plates',
@@ -290,7 +314,7 @@ export function BlackList() {
       const resolved = resolveSearchParams();
       if (!resolved) return;
       if (resolved.plate) params.set('plate', resolved.plate);
-      if (resolved.owner) params.set('owner', resolved.owner);
+      if (canViewOwnerNames && resolved.owner) params.set('owner', resolved.owner);
     }
     params.set('status', 'Чёрный');
     const url = `${getRoutePath('events')}?${params.toString()}`;
@@ -312,6 +336,8 @@ export function BlackList() {
       plateNumber: '',
       region: '',
       country: '',
+      accessFrom: '',
+      accessTo: '',
       notes: '',
       category: DEFAULT_CATEGORY
     });
@@ -368,6 +394,8 @@ export function BlackList() {
       plateNumber: vehicle.plateNumber,
       region: vehicle.region ?? '',
       country: vehicle.country ?? '',
+      accessFrom: vehicle.accessFrom ?? '',
+      accessTo: vehicle.accessTo ?? '',
       notes: vehicle.notes ?? '',
       category: vehicle.category
     });
@@ -386,7 +414,11 @@ export function BlackList() {
     const trimmedCountry = form.country.trim();
     const regionValue = trimmedRegion;
     const countryValue = trimmedCountry;
-    const plateNumberValue = form.plateNumber.trim();
+    const accessFromValue = form.accessFrom.trim();
+    const accessToValue = form.accessTo.trim();
+    const selectedCategory = form.category as StoredVehicle['category'];
+    const isContractorCategory = selectedCategory === 'contractor';
+    const plateNumberValue = buildPlateNumber(form.plateNumber.trim(), regionValue, countryValue);
     const formatValue = (value?: string) => (value ? value : '—');
     const nextErrors: typeof errors = {};
 
@@ -414,13 +446,37 @@ export function BlackList() {
       nextErrors.category = 'Выберите список.';
     }
 
+    if (isContractorCategory && !accessFromValue) {
+      nextErrors.accessFrom = 'Укажите дату начала доступа.';
+    }
+
+    if (isContractorCategory && !accessToValue) {
+      nextErrors.accessTo = 'Укажите дату окончания доступа.';
+    }
+
+    const accessFromTimestamp = parseAccessDateToTimestamp(accessFromValue);
+    const accessToTimestamp = parseAccessDateToTimestamp(accessToValue);
+    if (isContractorCategory && accessFromValue && !accessFromTimestamp) {
+      nextErrors.accessFrom = 'Введите корректную дату.';
+    }
+    if (isContractorCategory && accessToValue && !accessToTimestamp) {
+      nextErrors.accessTo = 'Введите корректную дату.';
+    }
+    if (
+      isContractorCategory &&
+      accessFromTimestamp !== null &&
+      accessToTimestamp !== null &&
+      accessFromTimestamp > accessToTimestamp
+    ) {
+      nextErrors.accessTo = 'Дата завершения должна быть не раньше даты начала.';
+    }
+
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
     }
 
     const notesValue = form.notes.trim() || undefined;
-    const selectedCategory = form.category as StoredVehicle['category'];
 
     if (editingVehicle) {
       const existingNotes = editingVehicle.notes ?? '';
@@ -433,6 +489,10 @@ export function BlackList() {
         plateNumberValue !== editingVehicle.plateNumber ||
         (regionValue ?? '') !== (editingVehicle.region ?? '') ||
         (countryValue ?? '') !== (editingVehicle.country ?? '') ||
+        (isContractorCategory ? accessFromValue : '') !==
+          (editingVehicle.category === 'contractor' ? (editingVehicle.accessFrom ?? '') : '') ||
+        (isContractorCategory ? accessToValue : '') !==
+          (editingVehicle.category === 'contractor' ? (editingVehicle.accessTo ?? '') : '') ||
         nextNotes !== existingNotes ||
         listChanged;
 
@@ -475,6 +535,25 @@ export function BlackList() {
         );
       }
 
+      const previousAccessFrom =
+        editingVehicle.category === 'contractor' ? editingVehicle.accessFrom : undefined;
+      const previousAccessTo =
+        editingVehicle.category === 'contractor' ? editingVehicle.accessTo : undefined;
+      const nextAccessFrom = isContractorCategory ? accessFromValue || undefined : undefined;
+      const nextAccessTo = isContractorCategory ? accessToValue || undefined : undefined;
+      if ((previousAccessFrom ?? '') !== (nextAccessFrom ?? '')) {
+        changes.push('срок с');
+        detailsParts.push(
+          `Срок доступа (с): ${formatValue(previousAccessFrom)} → ${formatValue(nextAccessFrom)}`
+        );
+      }
+      if ((previousAccessTo ?? '') !== (nextAccessTo ?? '')) {
+        changes.push('срок до');
+        detailsParts.push(
+          `Срок доступа (до): ${formatValue(previousAccessTo)} → ${formatValue(nextAccessTo)}`
+        );
+      }
+
       if (listChanged) {
         changes.push('список');
         detailsParts.push(
@@ -504,6 +583,8 @@ export function BlackList() {
         plateNumber: plateNumberValue,
         region: regionValue,
         country: countryValue,
+        accessFrom: isContractorCategory ? accessFromValue || undefined : undefined,
+        accessTo: isContractorCategory ? accessToValue || undefined : undefined,
         notes: notesValue,
         category: selectedCategory
       });
@@ -524,6 +605,8 @@ export function BlackList() {
         plateNumber: plateNumberValue,
         region: regionValue,
         country: countryValue,
+        accessFrom: isContractorCategory ? accessFromValue || undefined : undefined,
+        accessTo: isContractorCategory ? accessToValue || undefined : undefined,
         notes: notesValue
       });
 
@@ -534,7 +617,11 @@ export function BlackList() {
         target: formatPlateWithCountryCode(plateNumberValue, countryValue),
         details: `Номер: ${formatPlateWithCountryCode(plateNumberValue, countryValue)} · Список: ${categoryAuditLabels[selectedCategory]} · Владелец: ${ownerValue} · Регион: ${formatValue(
           regionValue
-        )} · Страна: ${formatValue(countryValue)}`
+        )} · Страна: ${formatValue(countryValue)}${
+          isContractorCategory
+            ? ` · Срок доступа: ${formatValue(accessFromValue)} - ${formatValue(accessToValue)}`
+            : ''
+        }`
       });
     }
 
@@ -581,30 +668,30 @@ export function BlackList() {
         description="Автомобили с запрещённым доступом"
         actions={
           canManage ? (
-            <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-              <DialogTrigger asChild>
+            <Drawer open={dialogOpen} onOpenChange={handleDialogChange} direction="right">
+              <DrawerTrigger asChild>
                 <Button icon={<Plus className="w-4 h-4" />} onClick={openCreateDialog}>
                   Добавить автомобиль
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-xl">
-                <DialogHeader>
-                  <DialogTitle>
+              </DrawerTrigger>
+              <DrawerContent className="data-[vaul-drawer-direction=right]:w-full data-[vaul-drawer-direction=right]:sm:max-w-xl overflow-y-auto">
+                <DrawerHeader>
+                  <DrawerTitle>
                     {editingVehicle ? 'Редактирование автомобиля' : 'Добавление автомобиля'}
-                  </DialogTitle>
-                  <DialogDescription className="text-foreground font-medium">
+                  </DrawerTitle>
+                  <DrawerDescription className="text-foreground font-medium">
                     {editingVehicle
                       ? 'Обновите данные владельца и автомобиля.'
                       : 'Укажите данные владельца и автомобиля.'}
-                  </DialogDescription>
-                </DialogHeader>
+                  </DrawerDescription>
+                </DrawerHeader>
 
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
                     handleSave();
                   }}
-                  className="space-y-4"
+                  className="space-y-4 px-4 pb-4"
                 >
                   <div className="grid gap-4">
                     <div>
@@ -624,24 +711,23 @@ export function BlackList() {
                       )}
                     </div>
 
-                    <div>
-                      <Input
-                        label="Номер автомобиля"
-                        value={form.plateNumber}
-                        onChange={(value) => {
-                          setForm((prev) => ({ ...prev, plateNumber: value }));
-                          if (errors.plateNumber) {
-                            setErrors((prev) => ({ ...prev, plateNumber: undefined }));
-                          }
-                        }}
-                        placeholder="А123ВС"
-                      />
-                      {errors.plateNumber && (
-                        <p className="mt-1 text-xs text-red-600">{errors.plateNumber}</p>
-                      )}
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
+                      <div>
+                        <Input
+                          label="Номер автомобиля"
+                          value={form.plateNumber}
+                          onChange={(value) => {
+                            setForm((prev) => ({ ...prev, plateNumber: value }));
+                            if (errors.plateNumber) {
+                              setErrors((prev) => ({ ...prev, plateNumber: undefined }));
+                            }
+                          }}
+                          placeholder="А123ВС"
+                        />
+                        {errors.plateNumber && (
+                          <p className="mt-1 text-xs text-red-600">{errors.plateNumber}</p>
+                        )}
+                      </div>
                       <div>
                         <Input
                           label="Регион"
@@ -658,46 +744,50 @@ export function BlackList() {
                           <p className="mt-1 text-xs text-red-600">{errors.region}</p>
                         )}
                       </div>
-                      <div className="relative">
-                        <Input
-                          label="Страна"
-                          value={form.country}
-                          onChange={(value) => {
-                            setForm((prev) => ({ ...prev, country: value }));
-                            if (errors.country) {
-                              setErrors((prev) => ({ ...prev, country: undefined }));
-                            }
-                            setCountrySuggestionsOpen(value.trim().length > 0);
-                          }}
-                          placeholder="Россия (RUS)"
-                        />
-                        {countrySuggestionsOpen &&
-                          form.country.trim() !== '' &&
-                          filteredCountries.length > 0 && (
-                            <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-300 rounded text-sm shadow-lg z-20 max-h-44 overflow-y-auto">
-                              {filteredCountries.map((option) => (
-                                <button
-                                  key={option.value}
-                                  type="button"
-                                  className="w-full text-left px-3 py-2 transition-colors hover:bg-blue-50"
-                                  onMouseDown={(event) => event.preventDefault()}
-                                  onClick={() => {
-                                    setForm((prev) => ({ ...prev, country: option.label }));
-                                    if (errors.country) {
-                                      setErrors((prev) => ({ ...prev, country: undefined }));
-                                    }
-                                    setCountrySuggestionsOpen(false);
-                                  }}
-                                >
-                                  {option.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                    </div>
+
+                    <div className="relative">
+                      <Input
+                        label="Страна"
+                        value={form.country}
+                        onChange={(value) => {
+                          setForm((prev) => ({ ...prev, country: value }));
+                          if (errors.country) {
+                            setErrors((prev) => ({ ...prev, country: undefined }));
+                          }
+                          setCountrySuggestionsOpen(true);
+                        }}
+                        onFocus={() => setCountrySuggestionsOpen(true)}
+                        onBlur={() => {
+                          window.setTimeout(() => setCountrySuggestionsOpen(false), 120);
+                        }}
+                        placeholder="Россия (RUS)"
+                      />
+                      {countrySuggestionsOpen &&
+                        filteredCountries.length > 0 && (
+                          <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-300 rounded text-[13px] shadow-lg z-20 max-h-36 overflow-y-auto">
+                            {filteredCountries.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className="w-full text-left px-3 py-1.5 transition-colors hover:bg-blue-50"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => {
+                                  setForm((prev) => ({ ...prev, country: option.label }));
+                                  if (errors.country) {
+                                    setErrors((prev) => ({ ...prev, country: undefined }));
+                                  }
+                                  setCountrySuggestionsOpen(false);
+                                }}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         {errors.country && (
                           <p className="mt-1 text-xs text-red-600">{errors.country}</p>
                         )}
-                      </div>
                     </div>
 
                     <div>
@@ -706,8 +796,13 @@ export function BlackList() {
                         value={form.category}
                         onChange={(value) => {
                           setForm((prev) => ({ ...prev, category: value }));
-                          if (errors.category) {
-                            setErrors((prev) => ({ ...prev, category: undefined }));
+                          if (errors.category || errors.accessFrom || errors.accessTo) {
+                            setErrors((prev) => ({
+                              ...prev,
+                              category: undefined,
+                              accessFrom: undefined,
+                              accessTo: undefined
+                            }));
                           }
                         }}
                         options={categoryOptions}
@@ -719,6 +814,51 @@ export function BlackList() {
                       )}
                     </div>
 
+                    <div
+                      className={`transition-[max-height,opacity,transform,margin] duration-300 ease-out overflow-hidden ${
+                        form.category === 'contractor'
+                          ? 'max-h-40 opacity-100 translate-y-0 mt-0'
+                          : 'max-h-0 opacity-0 -translate-y-1 pointer-events-none mt-0'
+                      }`}
+                    >
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <DatePickerInput
+                            mode="single"
+                            label="Срок доступа: Начало"
+                            value={form.accessFrom}
+                            onChange={(value) => {
+                              setForm((prev) => ({ ...prev, accessFrom: value }));
+                              if (errors.accessFrom) {
+                                setErrors((prev) => ({ ...prev, accessFrom: undefined }));
+                              }
+                            }}
+                            placeholder="ДД.ММ.ГГГГ"
+                          />
+                          {errors.accessFrom && (
+                            <p className="mt-1 text-xs text-red-600">{errors.accessFrom}</p>
+                          )}
+                        </div>
+                        <div>
+                          <DatePickerInput
+                            mode="single"
+                            label="Срок доступа: Завершение"
+                            value={form.accessTo}
+                            onChange={(value) => {
+                              setForm((prev) => ({ ...prev, accessTo: value }));
+                              if (errors.accessTo) {
+                                setErrors((prev) => ({ ...prev, accessTo: undefined }));
+                              }
+                            }}
+                            placeholder="ДД.ММ.ГГГГ"
+                          />
+                          {errors.accessTo && (
+                            <p className="mt-1 text-xs text-red-600">{errors.accessTo}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                     <div>
                       <Input
                         label="Примечание"
@@ -728,17 +868,17 @@ export function BlackList() {
                       />
                     </div>
                   </div>
-                  <DialogFooter className="mt-3 justify-start sm:justify-start">
+                  <DrawerFooter className="mt-8 p-0 sm:flex-row sm:justify-start">
                     <Button type="submit">
                       {editingVehicle ? 'Сохранить' : 'Создать'}
                     </Button>
                     <Button variant="secondary" onClick={() => handleDialogChange(false)}>
                       Отмена
                     </Button>
-                  </DialogFooter>
+                  </DrawerFooter>
                 </form>
-              </DialogContent>
-            </Dialog>
+              </DrawerContent>
+            </Drawer>
           ) : undefined
         }
       />
@@ -748,7 +888,7 @@ export function BlackList() {
           <div className="w-full max-w-[390px]">
             <div className="relative">
               <Input
-                label="Поиск по номеру или владельцу"
+                label={canViewOwnerNames ? 'Поиск по номеру или владельцу' : 'Поиск по номеру'}
                 value={searchQuery}
                 onChange={(value) => {
                   setSearchQuery(value);
@@ -763,7 +903,7 @@ export function BlackList() {
                 onBlur={() => {
                   window.setTimeout(() => setSearchSuggestionsOpen(false), 120);
                 }}
-                placeholder="Введите номер или имя владельца"
+                placeholder={canViewOwnerNames ? 'Введите номер или имя владельца' : 'Введите номер'}
                 icon={<Search className="w-4 h-4" />}
                 className="h-[36px]"
               />
@@ -868,7 +1008,7 @@ export function BlackList() {
               </TooltipTrigger>
               {!canViewEntries && (
                 <TooltipContent side="top" sideOffset={6}>
-                  Выберите номер, владельца (организацию)
+                  {canViewOwnerNames ? 'Выберите номер, владельца (организацию)' : 'Выберите номер'}
                 </TooltipContent>
               )}
             </Tooltip>
@@ -895,7 +1035,9 @@ export function BlackList() {
                     : 'opacity-100 translate-y-0 scale-100'
                 }`}
               >
-                {formatPlateNumber(vehicle.plateNumber)} · {getOwnerShortLabel(vehicle.owner)}
+                {canViewOwnerNames
+                  ? `${formatPlateNumber(vehicle.plateNumber)} · ${getOwnerShortLabel(vehicle.owner)}`
+                  : formatPlateNumber(vehicle.plateNumber)}
                 <span className="text-[14px] leading-none font-semibold">×</span>
               </button>
             );
@@ -913,7 +1055,7 @@ export function BlackList() {
           <table className="w-full table-fixed">
             <colgroup>
               <col className="w-[220px]" />
-              <col className="w-[240px]" />
+              {canViewOwnerNames && <col className="w-[240px]" />}
               <col className="w-[170px]" />
               <col className="w-[260px]" />
               {canManage && <col className="w-[120px]" />}
@@ -923,9 +1065,11 @@ export function BlackList() {
                 <th className="text-center py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Номер автомобиля
                 </th>
-                <th className="text-center py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
-                  Владелец
-                </th>
+                {canViewOwnerNames && (
+                  <th className="text-center py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                    Владелец
+                  </th>
+                )}
                 <th className="text-center py-4 px-6 text-[12px] font-bold uppercase tracking-wider">
                   <button
                     type="button"
@@ -957,9 +1101,11 @@ export function BlackList() {
                     <td className="py-4 px-6">
                       <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
-                    </td>
+                    {canViewOwnerNames && (
+                      <td className="py-4 px-4">
+                        <div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
+                      </td>
+                    )}
                     <td className="py-4 px-4">
                       <div className="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
                     </td>
@@ -987,17 +1133,23 @@ export function BlackList() {
                     >
                     <td className="py-4 px-6 text-center text-red-600 plate-text">
                       <span className="inline-flex items-center justify-center gap-2">
-                        {formatPlateNumber(vehicle.plateNumber)}
+                        {formatPlateNumberWithRegion(
+                          vehicle.plateNumber,
+                          vehicle.region,
+                          vehicle.country
+                        )}
                         <span className="text-[11px] text-foreground/70 font-semibold">
                           ({getPlateCountryCode(vehicle.plateNumber, vehicle.country)})
                         </span>
                       </span>
                     </td>
-                    <td className="py-4 px-6 text-center text-[14px] text-foreground/80">
-                      <span className="inline-flex items-center justify-center">
-                        {vehicle.owner}
-                      </span>
-                    </td>
+                    {canViewOwnerNames && (
+                      <td className="py-4 px-6 text-center text-[14px] text-foreground/80">
+                        <span className="inline-flex items-center justify-center">
+                          {vehicle.owner}
+                        </span>
+                      </td>
+                    )}
                     <td className="py-4 px-6 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
                       {vehicle.addedDate}
                     </td>
@@ -1038,7 +1190,10 @@ export function BlackList() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={canManage ? 5 : 4} className="py-8 text-center text-muted-foreground">
+                  <td
+                    colSpan={(canViewOwnerNames ? 4 : 3) + (canManage ? 1 : 0)}
+                    className="py-8 text-center text-muted-foreground"
+                  >
                     Нет данных по заданным критериям
                   </td>
                 </tr>

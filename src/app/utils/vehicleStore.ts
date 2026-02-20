@@ -6,6 +6,8 @@ export interface StoredVehicle {
   plateNumber: string;
   region?: string;
   country?: string;
+  accessFrom?: string;
+  accessTo?: string;
   owner: string;
   addedDate: string;
   notes?: string;
@@ -105,6 +107,8 @@ export const addStoredVehicle = (
     plateNumber: data.plateNumber,
     region: data.region,
     country: data.country,
+    accessFrom: data.accessFrom,
+    accessTo: data.accessTo,
     owner: data.owner,
     notes: data.notes,
     addedDate: formatDate(new Date())

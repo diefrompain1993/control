@@ -1,21 +1,31 @@
-﻿import { LogOut } from 'lucide-react';
-import type { User } from '@/auth/types';
-import { roleLabels } from '@/auth/roles';
-import { getNameWithInitials } from '@/app/utils/name';
+import { useEffect, useState } from 'react';
 import { BrandLogo } from '@/app/components/brand-logo';
 
-interface HeaderProps {
-  user: User | null;
-  onLogout: () => void;
-}
+const getUtcPlusThreeTime = () => {
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
+  const utcPlusThreeDate = new Date(utcMs + 3 * 60 * 60 * 1_000);
+  return utcPlusThreeDate.toLocaleTimeString('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+};
 
-export function Header({ user, onLogout }: HeaderProps) {
-  const roleLabel = user ? roleLabels[user.role] : 'Гость';
-  const displayName = getNameWithInitials(user?.fullName, user?.email ?? '—');
+export function Header() {
+  const [time, setTime] = useState(getUtcPlusThreeTime);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setTime(getUtcPlusThreeTime());
+    }, 1_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   return (
     <header className="h-[72px] bg-white border-b border-border flex items-center justify-between px-8 shadow-sm flex-shrink-0">
-      {/* Page Title */}
       <div className="flex items-center">
         <BrandLogo
           showImage={false}
@@ -24,24 +34,9 @@ export function Header({ user, onLogout }: HeaderProps) {
         />
       </div>
 
-      {/* Right Side */}
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={onLogout}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground/70 hover:text-foreground hover:bg-muted/50 rounded-xl transition-smooth"
-        >
-          <LogOut className="w-4 h-4" />
-          Выйти
-        </button>
-
-        {/* User Name Only */}
-        <div className="flex items-center gap-3 pl-4 border-l border-border">
-          <div className="flex flex-col">
-            <span className="text-base font-semibold text-foreground leading-tight">{displayName}</span>
-            <span className="text-sm text-foreground/80 leading-tight">{roleLabel}</span>
-          </div>
-        </div>
+      <div className="flex items-center gap-2 text-foreground">
+        <span className="text-sm text-foreground/70">UTC +3</span>
+        <span className="text-lg font-semibold font-mono tracking-wide">{time}</span>
       </div>
     </header>
   );

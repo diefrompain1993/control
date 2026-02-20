@@ -4,7 +4,7 @@ interface FilterBarProps {
 
 export function FilterBar({ children }: FilterBarProps) {
   return (
-    <div className="bg-white rounded-lg p-4 mb-4 transition-all duration-200">
+    <div className="relative z-40 bg-white rounded-lg p-4 mb-4 transition-all duration-200">
       {children}
     </div>
   );

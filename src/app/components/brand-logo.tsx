@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const LOGO_SRC = '/golf_icon.png';
 
@@ -10,18 +10,24 @@ interface BrandLogoProps {
   label?: string;
   labelClassName?: string;
   showImage?: boolean;
+  src?: string;
 }
 
 export function BrandLogo({
   className,
   fallbackClassName,
-  alt = 'Гольф-клуб "Сколково"',
+  alt = 'Мониторинг въездов',
   showLabel = false,
-  label = 'Гольф-клуб "Сколково"',
+  label = 'Мониторинг въездов',
   labelClassName,
-  showImage = true
+  showImage = true,
+  src = LOGO_SRC
 }: BrandLogoProps) {
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
 
   const imageNode = showImage
     ? failed
@@ -32,7 +38,7 @@ export function BrandLogo({
         )
       : (
           <img
-            src={LOGO_SRC}
+            src={src}
             alt={alt}
             className={className}
             onError={() => setFailed(true)}

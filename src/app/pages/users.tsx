@@ -20,9 +20,17 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger
+  DialogTitle
 } from '@/app/components/ui/dialog';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger
+} from '@/app/components/ui/drawer';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -396,130 +404,132 @@ export function Users() {
         </div>
 
         {canManageUser && (
-          <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-            <DialogTrigger asChild>
+          <Drawer open={dialogOpen} onOpenChange={handleDialogChange} direction="right">
+            <DrawerTrigger asChild>
               <Button icon={<Plus className="w-4 h-4" />}>
                 Добавить пользователя
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-xl">
-              <DialogHeader>
-                <DialogTitle>Добавление пользователя</DialogTitle>
-                <DialogDescription>
+            </DrawerTrigger>
+            <DrawerContent className="data-[vaul-drawer-direction=right]:w-full data-[vaul-drawer-direction=right]:sm:max-w-xl overflow-y-auto">
+              <DrawerHeader>
+                <DrawerTitle>Добавление пользователя</DrawerTitle>
+                <DrawerDescription className="text-foreground font-medium">
                   Заполните данные нового пользователя системы.
-                </DialogDescription>
-              </DialogHeader>
+                </DrawerDescription>
+              </DrawerHeader>
 
-              {errors.form && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {errors.form}
-                </div>
-              )}
+              <div className="space-y-4 px-4 pb-4">
+                {errors.form && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {errors.form}
+                  </div>
+                )}
 
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  handleCreateUser();
-                }}
-                className="grid gap-4"
-              >
-                <div>
-                  <Input
-                    label="Фамилия Имя Отчество"
-                    value={form.fullName}
-                    onChange={(value) => {
-                      setForm((prev) => ({ ...prev, fullName: value }));
-                      if (errors.fullName || errors.form) {
-                        setErrors((prev) => ({
-                          ...prev,
-                          fullName: undefined,
-                          form: undefined
-                        }));
-                      }
-                    }}
-                    placeholder="Макаров Иван Сергеевич"
-                  />
-                  {errors.fullName && (
-                    <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>
-                  )}
-                </div>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleCreateUser();
+                  }}
+                  className="grid gap-4"
+                >
+                  <div>
+                    <Input
+                      label="Фамилия Имя Отчество"
+                      value={form.fullName}
+                      onChange={(value) => {
+                        setForm((prev) => ({ ...prev, fullName: value }));
+                        if (errors.fullName || errors.form) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            fullName: undefined,
+                            form: undefined
+                          }));
+                        }
+                      }}
+                      placeholder="Макаров Иван Сергеевич"
+                    />
+                    {errors.fullName && (
+                      <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>
+                    )}
+                  </div>
 
-                <div>
-                  <Input
-                    label="Электронная почта"
-                    value={form.email}
-                    onChange={(value) => {
-                      setForm((prev) => ({ ...prev, email: value }));
-                      if (errors.email || errors.form) {
-                        setErrors((prev) => ({
-                          ...prev,
-                          email: undefined,
-                          form: undefined
-                        }));
-                      }
-                    }}
-                    placeholder="name@example.com"
-                    type="email"
-                  />
-                  {errors.email && (
-                    <p className="mt-1 text-xs text-red-600">{errors.email}</p>
-                  )}
-                </div>
+                  <div>
+                    <Input
+                      label="Электронная почта"
+                      value={form.email}
+                      onChange={(value) => {
+                        setForm((prev) => ({ ...prev, email: value }));
+                        if (errors.email || errors.form) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            email: undefined,
+                            form: undefined
+                          }));
+                        }
+                      }}
+                      placeholder="name@example.com"
+                      type="email"
+                    />
+                    {errors.email && (
+                      <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+                    )}
+                  </div>
 
-                <div>
-                  <Input
-                    label="Пароль"
-                    value={form.password}
-                    onChange={(value) => {
-                      setForm((prev) => ({ ...prev, password: value }));
-                      if (errors.password || errors.form) {
-                        setErrors((prev) => ({
-                          ...prev,
-                          password: undefined,
-                          form: undefined
-                        }));
-                      }
-                    }}
-                    placeholder="Минимум 10 символов"
-                    type="password"
-                  />
-                  {errors.password && (
-                    <p className="mt-1 text-xs text-red-600">{errors.password}</p>
-                  )}
-                </div>
+                  <div>
+                    <Input
+                      label="Пароль"
+                      value={form.password}
+                      onChange={(value) => {
+                        setForm((prev) => ({ ...prev, password: value }));
+                        if (errors.password || errors.form) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            password: undefined,
+                            form: undefined
+                          }));
+                        }
+                      }}
+                      placeholder="Минимум 10 символов"
+                      type="password"
+                    />
+                    {errors.password && (
+                      <p className="mt-1 text-xs text-red-600">{errors.password}</p>
+                    )}
+                  </div>
 
-                <div>
-                  <Select
-                    label="Роль"
-                    value={form.role}
-                    onChange={(value) => {
-                      setForm((prev) => ({ ...prev, role: value }));
-                      if (errors.role || errors.form) {
-                        setErrors((prev) => ({
-                          ...prev,
-                          role: undefined,
-                          form: undefined
-                        }));
-                      }
-                    }}
-                    options={roleOptions}
-                    placeholder="Выберите роль"
-                    hidePlaceholderOption
-                  />
-                  {errors.role && (
-                    <p className="mt-1 text-xs text-red-600">{errors.role}</p>
-                  )}
-                </div>
+                  <div>
+                    <Select
+                      label="Роль"
+                      value={form.role}
+                      onChange={(value) => {
+                        setForm((prev) => ({ ...prev, role: value }));
+                        if (errors.role || errors.form) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            role: undefined,
+                            form: undefined
+                          }));
+                        }
+                      }}
+                      options={roleOptions}
+                      placeholder="Выберите роль"
+                      hidePlaceholderOption
+                    />
+                    {errors.role && (
+                      <p className="mt-1 text-xs text-red-600">{errors.role}</p>
+                    )}
+                  </div>
 
-                <DialogFooter className="mt-3">
-                  <Button type="submit">Создать</Button>
-                  <Button variant="secondary" onClick={() => handleDialogChange(false)}>
-                    Отмена
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  <DrawerFooter className="mt-8 p-0 sm:flex-row sm:justify-start">
+                    <Button type="submit">Создать</Button>
+                    <Button variant="secondary" onClick={() => handleDialogChange(false)}>
+                      Отмена
+                    </Button>
+                  </DrawerFooter>
+                </form>
+              </div>
+            </DrawerContent>
+          </Drawer>
         )}
       </div>
 
@@ -657,11 +667,11 @@ export function Users() {
               {canManageUser ? (
                 <>
                   <col style={{ width: '18%' }} />
-                  <col style={{ width: '21%' }} />
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '20%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '20%' }} />
                   <col style={{ width: '17%' }} />
-                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '10%' }} />
                 </>
               ) : (
                 <>
@@ -685,10 +695,10 @@ export function Users() {
                     Пароль
                   </th>
                 )}
-                <th className="text-center py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-8 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                   Роль
                 </th>
-                <th className="text-center py-4 px-6 text-[12px] font-bold uppercase tracking-wider">
+                <th className="text-center py-4 px-8 text-[12px] font-bold uppercase tracking-wider">
                   <div
                     className="inline-flex items-center justify-center gap-1 text-foreground/70 hover:text-foreground cursor-pointer select-none text-[12px] font-bold uppercase tracking-wider"
                     onClick={() => setLastLoginSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
@@ -735,12 +745,12 @@ export function Users() {
                       {entry.password || '—'}
                     </td>
                   )}
-                  <td className="py-4 px-6 text-center text-[14px] text-foreground/80">
-                    <span className="inline-flex min-w-[140px] justify-center rounded-full bg-slate-100 px-3 py-1 text-[13px] font-medium text-foreground/80">
+                  <td className="py-4 px-8 text-center text-[14px] text-foreground/80">
+                    <span className="mx-auto inline-flex h-9 w-[220px] max-w-full items-center justify-center whitespace-nowrap rounded-full bg-slate-100 px-4 py-1 text-[13px] font-medium text-foreground/80">
                       {roleLabels[entry.role]}
                     </span>
                   </td>
-                  <td className="py-4 px-6 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
+                  <td className="py-4 px-8 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
                     {entry.lastLogin}
                   </td>
                   {canManageUser && (

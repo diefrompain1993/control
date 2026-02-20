@@ -118,12 +118,12 @@ function AppShell() {
   return (
     <ProtectedRoute onRedirect={(path) => navigate(path, { replace: true })}>
       <div className="h-screen w-screen flex bg-background overflow-hidden">
-        <Sidebar activePage={activeRouteId} onNavigate={handleNavigate} />
+        <Sidebar activePage={activeRouteId} onNavigate={handleNavigate} onLogout={handleLogout} />
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <Header user={user} onLogout={handleLogout} />
+          <Header />
 
-          <main className="flex-1 overflow-y-scroll p-8">
+          <main className="flex-1 overflow-y-scroll [scrollbar-gutter:stable] p-8">
             <RequireRole roles={ROUTE_CONFIG[activeRouteId].roles}>{renderPage()}</RequireRole>
           </main>
         </div>

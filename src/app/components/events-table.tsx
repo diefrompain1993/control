@@ -2,6 +2,7 @@ import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { useMemo, useState } from 'react';
 import { formatPlateNumber, getPlateCountryCode } from '@/app/utils/plate';
+import { useAuth } from '@/auth/authContext';
 
 interface Event {
   id: string;
@@ -107,6 +108,8 @@ interface EventsTableProps {
 }
 
 export function EventsTable({ onViewAll }: EventsTableProps) {
+  const { user } = useAuth();
+  const canViewOwnerNames = user?.role !== 'guard';
   const [timeSort, setTimeSort] = useState<'asc' | 'desc'>('desc');
 
   const sortedEvents = useMemo(() => {
@@ -130,12 +133,10 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
 
   return (
     <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-      {/* Header */}
       <div className="px-8 py-6 border-b border-border">
         <h2 className="text-[20px] font-bold text-foreground tracking-tight">Последние события</h2>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full table-fixed">
           <thead>
@@ -163,9 +164,11 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
               <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                 Номер
               </th>
-              <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
-                Владелец
-              </th>
+              {canViewOwnerNames && (
+                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                  Владелец
+                </th>
+              )}
               <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                 Список
               </th>
@@ -218,19 +221,20 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
                               showArrow={false}
                             >
                               Плохо распознан номер
-                          
                             </TooltipContent>
                           </Tooltip>
                         )}
                       </span>
                     </div>
                   </td>
-                  <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground/80">
-                    {ownerLabel}
-                  </td>
+                  {canViewOwnerNames && (
+                    <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground/80">
+                      {ownerLabel}
+                    </td>
+                  )}
                   <td className="py-4 px-4 text-center">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-[13px] font-medium ${getStatusStyles(
+                      className={`inline-flex min-w-[140px] items-center justify-center px-3 py-1 rounded-full text-[13px] font-medium ${getStatusStyles(
                         event.status
                       )}`}
                     >
@@ -244,12 +248,11 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
         </table>
       </div>
 
-      {/* Pagination */}
       <div className="px-8 pt-4 pb-2 border-t border-border flex items-center justify-center bg-muted/20">
-        <p className="text-sm font-medium text-muted-foreground text-center w-full -translate-y-[2px]">Показано 1-10 из {events.length}</p>
+        <p className="text-sm font-medium text-muted-foreground text-center w-full -translate-y-[2px]">
+          Показано 1-10 из {events.length}
+        </p>
       </div>
     </div>
   );
 }
-
-

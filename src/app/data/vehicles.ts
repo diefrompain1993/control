@@ -63,6 +63,8 @@ export const BASE_VEHICLES: Record<VehicleCategory, StoredVehicle[]> = {
       region: '77',
       owner: 'ООО "СМК"',
       addedDate: '05.01.2025',
+      accessFrom: '01.01.2025',
+      accessTo: '31.12.2025',
       notes: 'Подрядчик стройки'
     },
     {
@@ -72,6 +74,8 @@ export const BASE_VEHICLES: Record<VehicleCategory, StoredVehicle[]> = {
       region: '50',
       owner: 'ООО "СМК"',
       addedDate: '12.01.2025',
+      accessFrom: '11.01.2025',
+      accessTo: '10.03.2026',
       notes: 'Временный доступ'
     },
     {
@@ -81,6 +85,8 @@ export const BASE_VEHICLES: Record<VehicleCategory, StoredVehicle[]> = {
       region: '52',
       owner: 'ООО "ГрандСтрой"',
       addedDate: '18.01.2025',
+      accessFrom: '15.01.2025',
+      accessTo: '14.02.2026',
       notes: 'Проектный подрядчик'
     },
     {
@@ -90,6 +96,8 @@ export const BASE_VEHICLES: Record<VehicleCategory, StoredVehicle[]> = {
       region: '16',
       owner: 'ООО "ТрансСервис"',
       addedDate: '21.01.2025',
+      accessFrom: '20.01.2025',
+      accessTo: '01.02.2026',
       notes: 'Логистика'
     },
     {
@@ -99,6 +107,8 @@ export const BASE_VEHICLES: Record<VehicleCategory, StoredVehicle[]> = {
       region: '77',
       owner: 'ООО "АльфаИнжиниринг"',
       addedDate: '25.01.2025',
+      accessFrom: '22.01.2025',
+      accessTo: '25.12.2026',
       notes: 'Инженерные работы'
     }
   ],
