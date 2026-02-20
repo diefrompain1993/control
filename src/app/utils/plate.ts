@@ -125,6 +125,8 @@ const extractPlateCountryCode = (value?: string) => {
 const normalizeRegionValue = (value?: string) =>
   normalizePlateNumber(value ?? '').replace(/[^A-Z\u0410-\u042f0-9]/g, '');
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const getRegionDigits = (value: string, length?: number) => {
   const digits = value.replace(/\D/g, '');
   if (!digits) return '';
@@ -206,7 +208,27 @@ export const formatPlateNumberWithRegion = (
   plate: string,
   region?: string,
   country?: string
-) => formatPlateNumber(buildPlateNumber(plate, region, country));
+) => {
+  const built = buildPlateNumber(plate, region, country);
+  const formattedBuilt = formatPlateNumber(built);
+  const normalizedRegion = normalizeRegionValue(region);
+
+  if (!normalizedRegion) return formattedBuilt;
+
+  const separatedRegionPattern = new RegExp(`[\\s-]${escapeRegExp(normalizedRegion)}$`);
+  if (separatedRegionPattern.test(formattedBuilt)) {
+    return formattedBuilt;
+  }
+
+  const normalizedPlate = sanitizePlateValue(plate);
+  const base =
+    normalizedPlate.endsWith(normalizedRegion)
+      ? normalizedPlate.slice(0, -normalizedRegion.length)
+      : normalizedPlate;
+  const formattedBase = base ? formatPlateNumber(base) : formattedBuilt;
+
+  return `${formattedBase} ${normalizedRegion}`.trim();
+};
 
 export const getPlateCountryCode = (value: string, country?: string) => {
   const explicitCode = extractPlateCountryCode(country);

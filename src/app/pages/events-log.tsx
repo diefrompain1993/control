@@ -404,25 +404,22 @@ export function EventsLog() {
       }
 
       datedEvents.forEach(({ event, date }) => {
-        if (
-          date.getDate() !== anchorDay.getDate() ||
-          date.getMonth() !== anchorDay.getMonth() ||
-          date.getFullYear() !== anchorDay.getFullYear()
-        ) {
-          return;
-        }
         const hour = parseTimeToHour(event.time);
         if (hour === null || !buckets.has(hour)) return;
         const bucket = buckets.get(hour);
         if (!bucket) return;
         bucket.entries += 1;
-        bucket.times.push(event.time);
+        bucket.times.push(`${event.date} ${event.time}`);
       });
 
       return Array.from(buckets.entries()).map(([hour, bucket]) => ({
         label: `${String(hour).padStart(2, '0')}:00`,
         entries: bucket.entries,
-        times: bucket.times.sort()
+        times: bucket.times.sort((a, b) => {
+          const [dateA = '', timeA = '00:00:00'] = a.split(' ');
+          const [dateB = '', timeB = '00:00:00'] = b.split(' ');
+          return parseDateTimeToTimestamp(dateA, timeA) - parseDateTimeToTimestamp(dateB, timeB);
+        })
       }));
     }
 
@@ -759,15 +756,9 @@ export function EventsLog() {
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const value = Number(payload[0]?.value ?? 0);
-                      const point = payload[0]?.payload as ContractorActivityPoint | undefined;
-                      const times = point?.times ?? [];
-                      const visibleTimes =
-                        times.length > 3 ? `${times.slice(0, 3).join(', ')} +${times.length - 3}` : times.join(', ');
-                      const timeSuffix = value > 0 && times.length > 0 ? ` (${visibleTimes})` : '';
                       return (
                         <div className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg">
                           {value} {pluralizeEntries(value)}
-                          {timeSuffix}
                         </div>
                       );
                     }}
