@@ -34,8 +34,7 @@ export function Header() {
         />
       </div>
 
-      <div className="flex items-center gap-2 text-foreground">
-        <span className="text-sm text-foreground/70">UTC +3</span>
+      <div className="flex items-center text-foreground">
         <span className="text-lg font-semibold font-mono tracking-wide">{time}</span>
       </div>
     </header>

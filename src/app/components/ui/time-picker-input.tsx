@@ -107,7 +107,7 @@ export function TimePickerInput({
             }}
             placeholder={placeholder}
             disabled={disabled}
-            className={`w-full pl-4 pr-10 py-2 border border-gray-300 rounded text-sm transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
+            className={`w-full pl-4 pr-10 py-2 border border-gray-300 rounded text-sm transition-colors duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ''}`}
           />
           <PopoverTrigger asChild>
             <button
@@ -131,26 +131,26 @@ export function TimePickerInput({
             }
           }}
         >
-          <div className="flex items-center justify-between px-4 pt-3 text-xs text-slate-500">
+          <div className="flex items-center justify-between border-b border-gray-200 bg-slate-50/70 px-4 py-3 text-xs text-slate-600">
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="text-slate-600 hover:text-slate-900 transition-colors"
+              className="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2.5 font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
               Закрыть
             </button>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => onChange('')}
-                className="text-slate-600 hover:text-slate-900 transition-colors"
+                className="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2.5 font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
               >
                 Сбросить
               </button>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="text-slate-600 hover:text-slate-900 transition-colors"
+                className="inline-flex h-7 items-center rounded-md bg-blue-600 px-2.5 font-semibold text-white transition-colors hover:bg-blue-700"
               >
                 Готово
               </button>

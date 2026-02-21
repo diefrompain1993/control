@@ -139,6 +139,12 @@ const getRegionLetters = (value: string, length?: number) => {
   return length ? letters.slice(0, length) : letters;
 };
 
+const formatUnknownPlate = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.toUpperCase().replace(/\s+/g, ' ');
+};
+
 const formatByCountry = (normalized: string, code: PlateCountryCode) => {
   switch (code) {
     case 'BY':
@@ -180,6 +186,7 @@ export const buildPlateNumber = (plate: string, region?: string, _country?: stri
   const normalized = sanitizePlateValue(plate);
   if (!normalized) return '';
   const regionValue = normalizeRegionValue(region);
+  const regionDigits = getRegionDigits(regionValue, 3);
   const rusMatch = normalized.match(
     new RegExp(`^(${PLATE_LETTER_CLASS}\\d{3}${PLATE_LETTER_CLASS}{2})(\\d{2,3})?$`)
   );
@@ -187,20 +194,49 @@ export const buildPlateNumber = (plate: string, region?: string, _country?: stri
   if (rusMatch) {
     const base = rusMatch[1];
     const existingRegion = rusMatch[2] ?? '';
-    const nextRegion = getRegionDigits(regionValue, 3) || existingRegion;
+    const nextRegion = regionDigits || existingRegion;
     return nextRegion ? `${base}${nextRegion}` : base;
   }
 
-  if (!regionValue || normalized.endsWith(regionValue)) {
+  if (!regionDigits || normalized.endsWith(regionDigits)) {
     return normalized;
   }
 
-  return `${normalized}${regionValue}`;
+  // Replace existing numeric suffix instead of appending repeatedly.
+  const numericSuffixMatch = normalized.match(/^(.*?)(\d{2,3})$/);
+  if (numericSuffixMatch) {
+    const prefix = numericSuffixMatch[1];
+    return `${prefix}${regionDigits}`;
+  }
+
+  return `${normalized}${regionDigits}`;
+};
+
+export const getPlateBaseForEdit = (plate: string, region?: string) => {
+  const normalizedPlate = sanitizePlateValue(plate);
+  if (!normalizedPlate) return '';
+
+  const regionValue = normalizeRegionValue(region);
+  const regionDigits = getRegionDigits(regionValue, 3);
+  if (!regionDigits) return normalizedPlate;
+
+  let base = normalizedPlate;
+  // Strip repeated region suffixes from corrupted values like "...66636663".
+  while (base.length > regionDigits.length && base.endsWith(regionDigits)) {
+    const next = base.slice(0, -regionDigits.length);
+    if (!/[A-Z\u0410-\u042f]/.test(next)) break;
+    base = next;
+  }
+
+  return base;
 };
 
 export const formatPlateNumber = (value: string) => {
   const normalized = sanitizePlateValue(value);
   const info = getPlateCountryInfo(value);
+  if (info.code === 'UNKNOWN') {
+    return formatUnknownPlate(value) || normalized;
+  }
   return formatByCountry(normalized, info.code);
 };
 
@@ -213,7 +249,13 @@ export const formatPlateNumberWithRegion = (
   const formattedBuilt = formatPlateNumber(built);
   const normalizedRegion = normalizeRegionValue(region);
 
-  if (!normalizedRegion) return formattedBuilt;
+  if (!normalizedRegion) {
+    const info = getPlateCountryInfo(plate);
+    if (info.code === 'UNKNOWN') {
+      return formatUnknownPlate(plate) || formattedBuilt;
+    }
+    return formattedBuilt;
+  }
 
   const separatedRegionPattern = new RegExp(`[\\s-]${escapeRegExp(normalizedRegion)}$`);
   if (separatedRegionPattern.test(formattedBuilt)) {

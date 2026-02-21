@@ -87,6 +87,13 @@ const statusByCategory: Record<StoredVehicle['category'], EventLogEntry['status'
   unlisted: 'Нет в списках'
 };
 
+const listBadgeByTextColor: Record<string, string> = {
+  'text-emerald-500': 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  'text-red-500': 'border-red-200 bg-red-50 text-red-700',
+  'text-purple-500': 'border-purple-200 bg-purple-50 text-purple-700',
+  'text-orange-500': 'border-orange-200 bg-orange-50 text-orange-700'
+};
+
 const PLATE_LETTER_MAP: Record<string, string> = {
   A: 'A',
   B: 'B',
@@ -293,22 +300,22 @@ export function QuickSearch({ className }: QuickSearchProps) {
       : foundEvents.map((event, index) => ({
           key: `event-${event.date}-${event.time}-${event.plateNumber}-${index}`,
           plateNumber: event.plateNumber,
-          country: '',
+          country: event.country,
           listLabel: statusShortLabels[event.status],
           listColor: statusTextColors[event.status]
         }));
 
   return (
     <div
-      className={`bg-white rounded-xl border border-border shadow-sm p-8 flex flex-col ${className ?? ''}`}
+      className={`bg-white rounded-xl border border-border shadow-sm px-8 pt-6 pb-5 flex min-h-0 flex-col ${className ?? ''}`}
     >
-      <h2 className="text-[20px] font-bold text-foreground tracking-tight mb-5">
+      <h2 className="text-[20px] font-bold text-foreground tracking-tight mb-3">
         Быстрый поиск автомобиля
       </h2>
 
       <div className="flex flex-1 flex-col min-h-0">
-        <div className="mt-3 mb-4 flex flex-col items-start">
-          <label className="block text-sm font-medium text-muted-foreground mb-2 pl-[2px]">
+        <div className="mb-3 flex flex-col items-start">
+          <label className="block text-sm font-medium text-muted-foreground mb-1.5 pl-[2px]">
             Введите номер:
           </label>
           <div className="flex w-full max-w-[520px] gap-3">
@@ -350,59 +357,91 @@ export function QuickSearch({ className }: QuickSearchProps) {
         </div>
 
         {hasFoundResult && resultItems.length > 0 && (
-          <div className="border-t border-border pt-4 flex flex-col flex-1">
-            <div className="flex flex-col gap-2 text-sm text-foreground/70">
-              <div className="flex items-center gap-2">
-                <span>Найдено событий:</span>
-                <span className="font-semibold text-foreground">{resultItems.length}</span>
+          <div className="border-t border-border pt-3 flex flex-col flex-1 min-h-0">
+            <div className="flex flex-col gap-2 text-sm text-foreground/70 min-h-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span>Найдено событий:</span>
+                  <span className="font-semibold text-foreground">{resultItems.length}</span>
+                </div>
+                {resultItems.length > 5 && (
+                  <span className="text-[11px] text-muted-foreground">Прокрутите список</span>
+                )}
               </div>
-              <div className="max-h-32 pr-1 space-y-1">
-                {resultItems.map((item) => (
-                  <div
-                    key={item.key}
-                    className="flex items-center justify-start gap-2 whitespace-nowrap"
-                  >
-                    <span className="inline-flex items-center gap-2 text-foreground plate-text">
-                      {formatPlateNumber(item.plateNumber)}
-                      <span className="text-[11px] text-foreground/70 font-semibold">
-                        ({getPlateCountryCode(item.plateNumber, item.country)})
+              <div className="h-[96px] rounded-lg border border-border/80 bg-muted/20 overflow-hidden">
+                <div className="grid grid-cols-[minmax(0,1fr)_124px] items-center gap-2.5 border-b border-border/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span>Номер</span>
+                  <span className="text-center">Список</span>
+                </div>
+                <div
+                  className="h-[64px] overflow-y-auto overscroll-contain px-1 py-1"
+                  onWheel={(event) => {
+                    const container = event.currentTarget;
+                    if (container.scrollHeight <= container.clientHeight) return;
+                    const maxScrollTop = container.scrollHeight - container.clientHeight;
+                    const scrollingDown = event.deltaY > 0;
+                    const scrollingUp = event.deltaY < 0;
+                    const canScrollDown = container.scrollTop < maxScrollTop;
+                    const canScrollUp = container.scrollTop > 0;
+
+                    if ((scrollingDown && canScrollDown) || (scrollingUp && canScrollUp)) {
+                      event.stopPropagation();
+                    }
+                  }}
+                >
+                  {resultItems.map((item) => (
+                    <div
+                      key={item.key}
+                      className="grid grid-cols-[minmax(0,1fr)_124px] items-center gap-2.5 rounded-md px-2 py-1 hover:bg-white/70"
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-2 text-foreground plate-text">
+                        <span className="truncate">{formatPlateNumber(item.plateNumber)}</span>
+                        <span className="shrink-0 text-[11px] text-foreground/70 font-semibold">
+                          ({getPlateCountryCode(item.plateNumber, item.country)})
+                        </span>
                       </span>
-                    </span>
-                    <span className={`ml-2 font-semibold ${item.listColor}`}>Список: {item.listLabel}</span>
-                  </div>
-                ))}
+                      <span
+                        className={
+                          "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4 " +
+                          (listBadgeByTextColor[item.listColor] ?? "border-border bg-white text-foreground/80")
+                        }
+                      >
+                        {item.listLabel}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => canOpenNote && setDetailsOpen(true)}
-              disabled={!canOpenNote}
-              className={`mt-4 flex items-center gap-1.5 text-sm transition-smooth ${
-                canOpenNote
-                  ? 'text-primary hover:text-primary/80'
-                  : 'text-muted-foreground/60 cursor-not-allowed'
-              }`}
-            >
-              <MessageSquare className="w-4 h-4" strokeWidth={2} />
-              Есть примечание
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenCard}
-              disabled={!hasFoundResult}
-              className={`mt-8 text-sm font-semibold flex items-center gap-1.5 transition-smooth group ${
-                hasFoundResult
-                  ? 'text-primary hover:text-primary/80'
-                  : 'text-muted-foreground/60'
-              }`}
-            >
-              Открыть в журнале
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-smooth" />
-            </button>
+            <div className="mt-auto pt-5 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => canOpenNote && setDetailsOpen(true)}
+                disabled={!canOpenNote}
+                className={
+                  canOpenNote
+                    ? "flex items-center gap-1.5 text-sm transition-smooth text-primary hover:text-primary/80"
+                    : "flex items-center gap-1.5 text-sm transition-smooth text-muted-foreground/60 cursor-not-allowed"
+                }
+              >
+                <MessageSquare className="w-4 h-4" strokeWidth={2} />
+                Есть примечание
+              </button>
+
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleOpenCard}
+                disabled={!hasFoundResult}
+                className="h-8 px-3 text-sm font-semibold inline-flex items-center gap-1.5"
+              >
+                Посмотреть въезды
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         )}
-
         {hasNotFound && (
           <div className="border-t border-border pt-5 text-sm text-muted-foreground">
             Ничего не найдено

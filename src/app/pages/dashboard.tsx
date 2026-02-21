@@ -4,7 +4,7 @@ import { QuickSearch } from '@/app/components/quick-search';
 import { useAuth } from '@/auth/authContext';
 import { Users2, ShieldCheck, ShieldAlert, Building2 } from 'lucide-react';
 import type { RouteId } from '@/app/routesConfig';
-import { formatPlateNumber, getPlateCountryCode } from '@/app/utils/plate';
+import { getPlateCountryCode } from '@/app/utils/plate';
 
 interface DashboardProps {
   onNavigate?: (page: RouteId) => void;
@@ -13,24 +13,43 @@ interface DashboardProps {
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { user } = useAuth();
   const canViewOwnerNames = user?.role !== 'guard';
+  const isOfficeAdmin = user?.role === 'office_admin';
   const whiteList = 24;
   const blackList = 3;
   const noList = 12;
   const contractors = 19;
   const total = whiteList + blackList + noList + contractors;
-  const showStats = user?.role === 'office_admin';
+  const showStats = isOfficeAdmin;
   const showLastEntry = user?.role === 'guard' || user?.role === 'admin';
+  const dashboardGridClass = showLastEntry
+    ? 'grid grid-cols-1 gap-6 xl:grid-cols-[396px_minmax(0,1fr)] xl:items-stretch'
+    : 'grid grid-cols-1 gap-6 lg:grid-cols-[396px_minmax(0,1fr)] lg:items-stretch';
+  const leftColumnClass = showLastEntry
+    ? 'flex min-h-0 flex-col gap-6 xl:h-full xl:self-stretch'
+    : 'flex min-h-0 flex-col gap-6 lg:h-full lg:self-stretch';
+  const rightColumnClass = showLastEntry
+    ? 'min-w-0 xl:h-full xl:self-stretch'
+    : 'min-w-0 lg:h-full lg:self-stretch';
+  const quickSearchClass = showLastEntry
+    ? 'w-full overflow-hidden xl:mt-0 xl:flex-1'
+    : 'w-full max-w-[396px] overflow-hidden lg:max-w-none';
   const lastEntry = {
     time: '12:41:23',
-    plateNumber: 'A123BC77',
-    owner: 'Иванов И.И.'
+    plateNumber: 'H 740640',
+    country: 'RUS',
+    owner: 'ООО "ГрандСтрой"',
+    notes: 'Последний въезд (демо)'
   };
+  const lastEntryCountryCode = getPlateCountryCode(lastEntry.plateNumber, lastEntry.country);
+  const showLastEntryCountryCode = lastEntryCountryCode !== '—';
+  const lastEntryNotes = lastEntry.notes?.trim();
+  const showLastEntryNotes = Boolean(lastEntryNotes) && lastEntryNotes !== '—' && lastEntryNotes !== '-';
 
   return (
     <div className="space-y-8">
       {/* Stats Cards */}
       {showStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid auto-rows-fr grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           <StatsCard
             title="Всего за сегодня"
             count={total}
@@ -63,21 +82,21 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       )}
       
       {/* Events Table + Quick Search */}
-      <div className="grid grid-cols-1 xl:grid-cols-[396px_minmax(0,1fr)] gap-6 items-start">
-        <div className="flex flex-col gap-6">
+      <div className={dashboardGridClass}>
+        <div className={leftColumnClass}>
           {showLastEntry && (
-            <div className="w-full xl:aspect-square bg-white rounded-xl border border-border shadow-sm p-8 flex flex-col gap-4">
+            <div className="w-full bg-white rounded-xl border border-border shadow-sm px-8 pt-6 pb-6 flex flex-col gap-3">
               <h2 className="text-[20px] font-bold text-foreground tracking-tight">
                 Последний въезд
               </h2>
               <div className="flex-1 min-h-0 rounded-xl overflow-hidden border border-border">
                 <img
-                  src="/last-entry-car.jpg"
+                  src="/car_number.jpg"
                   alt="Последний въезд"
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="grid gap-2 text-sm text-foreground/80">
+              <div className="grid gap-1.5 text-sm text-foreground/80">
                 <div className="flex items-center justify-between gap-3">
                   <span>Время въезда</span>
                   <span className="text-foreground font-semibold font-mono">
@@ -87,7 +106,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <div className="flex items-center justify-between gap-3">
                   <span>Номер</span>
                   <span className="text-foreground plate-text">
-                    {formatPlateNumber(lastEntry.plateNumber)} ({getPlateCountryCode(lastEntry.plateNumber)})
+                    {lastEntry.plateNumber}
+                    {showLastEntryCountryCode ? ` (${lastEntryCountryCode})` : ''}
                   </span>
                 </div>
                 {canViewOwnerNames && (
@@ -96,13 +116,19 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     <span className="text-foreground font-semibold">{lastEntry.owner}</span>
                   </div>
                 )}
+                {showLastEntryNotes && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Примечание</span>
+                    <span className="text-foreground font-semibold text-right">{lastEntryNotes}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
-          <QuickSearch className="w-full xl:h-[340px] overflow-hidden mt-[2px]" />
+          <QuickSearch className={quickSearchClass} />
         </div>
-        <div className="min-w-0">
-          <EventsTable onViewAll={() => onNavigate?.('events')} />
+        <div className={rightColumnClass}>
+          <EventsTable onViewAll={() => onNavigate?.('events')} className="h-full" />
         </div>
       </div>
     </div>

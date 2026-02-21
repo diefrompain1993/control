@@ -44,7 +44,7 @@ const exportOptions = [
     title: 'Пользователи',
     description: 'Экспорт списка пользователей системы',
     icon: Users,
-    accent: 'purple'
+    accent: 'amber'
   }
 ] as const;
 
@@ -73,6 +73,9 @@ type PeriodRange = {
   start: number | null;
   end: number;
 };
+
+const isPeriodOptionId = (value: string): value is PeriodOptionId =>
+  periodOptions.some((option) => option.id === value);
 
 const normalizeRangeToWholeDays = (range: PeriodRange): PeriodRange => {
   if (range.start === null) return range;
@@ -232,6 +235,13 @@ const accentStyles = {
     iconBg: 'bg-purple-50',
     iconText: 'text-purple-600',
     text: 'text-purple-600'
+  },
+  amber: {
+    border: 'border-amber-500',
+    ring: 'ring-amber-200',
+    iconBg: 'bg-amber-50',
+    iconText: 'text-amber-600',
+    text: 'text-amber-600'
   }
 };
 
@@ -283,6 +293,47 @@ export function ExportData() {
       return lowerName.startsWith(query);
     });
   }, [contractorInputValue, contractorOrganizations]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const exportParam = (params.get('export') ?? '').trim() as ExportOptionId;
+    const periodParam = (params.get('period') ?? '').trim().toLowerCase();
+    const contractorParam = (params.get('contractor') ?? '').trim();
+    const validExport = exportOptions.some((option) => option.id === exportParam);
+    if (!validExport) return;
+
+    setSelectedExport(exportParam);
+
+    if (exportParam === 'contractors') {
+      if (contractorParam) {
+        setSelectedContractor(contractorParam);
+        setContractorInputValue(contractorParam);
+      } else {
+        setSelectedContractor('all');
+        setContractorInputValue('');
+      }
+    }
+
+    if (periodParam === 'week') {
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(endDate.getDate() - 6);
+      setManualMode(true);
+      setSelectedPeriod(null);
+      setManualDate(`${formatDateForPicker(startDate)} - ${formatDateForPicker(endDate)}`);
+      setManualTimeFrom('');
+      setManualTimeTo('');
+      return;
+    }
+
+    if (isPeriodOptionId(periodParam)) {
+      setSelectedPeriod(periodParam);
+      setManualMode(false);
+      setManualDate('');
+      setManualTimeFrom('');
+      setManualTimeTo('');
+    }
+  }, []);
 
   useEffect(() => {
     if (selectedExport !== 'contractors') {
@@ -535,29 +586,32 @@ export function ExportData() {
         description="Выберите тип экспорта, формат файла и период"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {exportOptions.map((option) => {
           const Icon = option.icon;
           const accent = accentStyles[option.accent];
           const isSelected = selectedExport === option.id;
+          const isUsersOption = option.id === 'users';
 
           return (
             <button
               key={option.id}
               type="button"
               onClick={() => setSelectedExport(option.id)}
-              className={`text-left bg-white rounded-xl p-5 border transition-all duration-200 group ${
+              className={`rounded-xl border bg-white p-4 transition-colors duration-200 group ${
+                isUsersOption ? 'text-center lg:col-span-2' : 'text-left'
+              } ${
                 isSelected
                   ? `${accent.border} ring-2 ${accent.ring} shadow-sm`
                   : 'border-gray-200 hover:border-gray-300'
               }`}
             >
-              <div className="flex items-start gap-4">
-                <div className={`p-3 rounded-lg ${accent.iconBg} ${accent.iconText}`}>
-                  <Icon className="w-5 h-5" />
+              <div className={`flex gap-4 ${isUsersOption ? 'items-center justify-center lg:-translate-x-6' : 'items-start'}`}>
+                <div className={`rounded-lg p-2.5 ${accent.iconBg} ${accent.iconText}`}>
+                  <Icon className="h-5 w-5" />
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                <div className={isUsersOption ? 'min-w-0' : 'flex-1'}>
+                  <div className={`flex items-center gap-2 ${isUsersOption ? 'justify-center' : ''}`}>
                     <h3 className="text-lg font-semibold text-foreground">{option.title}</h3>
                     {isSelected && (
                       <span className={`text-xs font-semibold uppercase ${accent.text}`}>
@@ -565,7 +619,9 @@ export function ExportData() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">{option.description}</p>
+                  <p className={`mt-1 text-sm text-gray-600 ${isUsersOption ? 'text-center' : ''}`}>
+                    {option.description}
+                  </p>
                 </div>
               </div>
             </button>
@@ -573,7 +629,7 @@ export function ExportData() {
         })}
       </div>
 
-      <div className="mt-6 bg-white rounded-xl border border-border p-6">
+      <div className="mt-4 rounded-xl border border-border bg-white p-5 xl:p-4">
         {!selectedExport ? (
           <div className="text-sm text-gray-600">Выберите вариант экспорта выше.</div>
         ) : (
@@ -808,7 +864,7 @@ export function ExportData() {
                 type="button"
                 onClick={handleExport}
                 disabled={!canExport}
-                className={`inline-flex h-10 -translate-y-[8px] items-center gap-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors sm:w-auto ${
                   canExport
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-200 text-gray-500 cursor-not-allowed'

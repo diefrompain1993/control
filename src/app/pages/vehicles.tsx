@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { AlertTriangle, ChevronDown, ChevronUp, Plus, Search } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Plus, Search } from 'lucide-react';
 
 import { useAuth } from '@/auth/authContext';
 
@@ -75,6 +75,7 @@ import {
 } from '@/app/components/ui/drawer';
 
 import { PLATE_COUNTRY_OPTIONS } from '@/app/data/plateCountries';
+import { usePaginatedPageScroll } from '@/app/hooks/use-paginated-page-scroll';
 
 const categoryLabels: Record<StoredVehicle['category'], string> = {
 
@@ -178,6 +179,7 @@ export function Vehicles() {
     accessTo?: string;
 
     category?: string;
+    form?: string;
 
   }>({});
 
@@ -204,6 +206,13 @@ export function Vehicles() {
   const [dateFilter, setDateFilter] = useState('');
 
   const [dateSort, setDateSort] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const tableHostRef = useRef<HTMLDivElement | null>(null);
+  const { handlePageChange, resetPageScrollMemory } = usePaginatedPageScroll({
+    currentPage,
+    setCurrentPage,
+    hostRef: tableHostRef
+  });
 
   const vehicles = useMemo(() => {
 
@@ -473,6 +482,26 @@ export function Vehicles() {
 
   }, [filteredVehicles, dateSort]);
 
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(sortedVehicles.length / itemsPerPage);
+  const displayedVehicles = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return sortedVehicles.slice(start, start + itemsPerPage);
+  }, [sortedVehicles, currentPage]);
+  const tableFillerRowCount =
+    displayedVehicles.length > 0 ? Math.max(0, itemsPerPage - displayedVehicles.length) : 0;
+
+  useEffect(() => {
+    resetPageScrollMemory();
+    setCurrentPage(1);
+  }, [searchQuery, categoryFilter, dateFilter, dateSort, refreshKey, resetPageScrollMemory]);
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const hasSearchMatches = searchQuery.trim() !== '' && filteredVehicles.length > 0;
 
   const hasOwnerSelection = canViewOwnerNames && Boolean(selectedPlate && selectedOwner);
@@ -596,6 +625,8 @@ export function Vehicles() {
     setCategoryFilter('');
     setDateFilter('');
     setDateSort('desc');
+    resetPageScrollMemory();
+    setCurrentPage(1);
     setSelectedPlate('');
     setSelectedOwner('');
     setSelectedRowIds([]);
@@ -641,13 +672,8 @@ export function Vehicles() {
   const handleSave = () => {
 
     const trimmedOwner = form.owner.trim();
-    const ownerValue =
-      trimmedOwner.split(/\s+/).length >= 2 && !isOrganizationName(trimmedOwner)
-        ? getNameWithInitials(trimmedOwner, trimmedOwner)
-        : trimmedOwner;
-
+    const ownerValue = trimmedOwner.replace(/\s+/g, ' ');
     const normalizedPlate = normalizePlateNumber(form.plateNumber);
-
     const trimmedRegion = form.region.trim();
 
     const trimmedCountry = form.country.trim();
@@ -661,47 +687,26 @@ export function Vehicles() {
     const plateNumberValue = buildPlateNumber(form.plateNumber.trim(), regionValue, countryValue);
 
     const nextErrors: typeof errors = {};
-
-    if (!trimmedOwner) {
-
+    if (!ownerValue) {
       nextErrors.owner = 'Введите данные владельца.';
-
     }
-
     if (!normalizedPlate) {
-
       nextErrors.plateNumber = 'Введите номер автомобиля.';
-
     }
-
     if (!trimmedRegion) {
-
       nextErrors.region = 'Введите регион.';
-
     }
-
     if (!trimmedCountry) {
-
       nextErrors.country = 'Укажите страну.';
-
-    }
-
-    if (trimmedCountry && /\d/.test(trimmedCountry)) {
-
+    } else if (/\d/.test(trimmedCountry)) {
       nextErrors.country = 'Страна должна содержать только буквы.';
-
     }
-
-    if (!form.category) {
-
+    if (!category) {
       nextErrors.category = 'Выберите список.';
-
     }
-
     if (isContractorCategory && !accessFromValue) {
       nextErrors.accessFrom = 'Укажите дату начала доступа.';
     }
-
     if (isContractorCategory && !accessToValue) {
       nextErrors.accessTo = 'Укажите дату окончания доступа.';
     }
@@ -724,12 +729,11 @@ export function Vehicles() {
     }
 
     if (Object.keys(nextErrors).length > 0) {
-
       setErrors(nextErrors);
-
       return;
-
     }
+
+    setErrors({});
 
     const notesValue = form.notes.trim() || undefined;
 
@@ -737,47 +741,40 @@ export function Vehicles() {
 
     const creatorName = getNameWithInitials(user?.fullName, '—');
 
-    addStoredVehicle(category, {
+    try {
+      addStoredVehicle(category, {
+        owner: ownerValue,
+        plateNumber: plateNumberValue,
+        region: regionValue,
+        country: countryValue,
+        accessFrom: isContractorCategory ? accessFromValue || undefined : undefined,
+        accessTo: isContractorCategory ? accessToValue || undefined : undefined,
+        notes: notesValue
+      });
+      const plateWithRegionAndCountry = `${formatPlateNumberWithRegion(
+        plateNumberValue,
+        regionValue,
+        countryValue
+      )} (${getPlateCountryCode(plateNumberValue, countryValue)})`;
 
-      owner: ownerValue,
+      addAuditLogEntry({
+        timestamp,
+        user: creatorName,
+        action: 'Добавлен автомобиль',
+        target: plateWithRegionAndCountry,
+        details: `Номер: ${plateWithRegionAndCountry} · Список: ${categoryLabels[category]} · Владелец: ${ownerValue} · Регион: ${regionValue ?? '—'} · Страна: ${countryValue ?? '—'}${
+          isContractorCategory
+            ? ` · Срок доступа: ${accessFromValue || '—'} - ${accessToValue || '—'}`
+            : ''
+        } · Примечание: ${notesValue || '—'}`
+      });
 
-      plateNumber: plateNumberValue,
-
-      region: regionValue,
-
-      country: countryValue,
-
-      accessFrom: isContractorCategory ? accessFromValue || undefined : undefined,
-
-      accessTo: isContractorCategory ? accessToValue || undefined : undefined,
-
-      notes: notesValue
-
-    });
-
-    addAuditLogEntry({
-
-      timestamp,
-
-      user: creatorName,
-
-      action: 'Добавлен автомобиль',
-
-      target: formatPlateWithCountryCode(plateNumberValue, countryValue),
-
-      details: `Номер: ${formatPlateWithCountryCode(plateNumberValue, countryValue)} · Список: ${categoryLabels[category]} · Владелец: ${ownerValue} · Регион: ${regionValue ?? '—'} · Страна: ${countryValue ?? '—'}${
-        isContractorCategory
-          ? ` · Срок доступа: ${accessFromValue || '—'} - ${accessToValue || '—'}`
-          : ''
-      }`
-
-    });
-
-    setRefreshKey((prev) => prev + 1);
-
-    setDialogOpen(false);
-
-    resetForm();
+      setRefreshKey((prev) => prev + 1);
+      setDialogOpen(false);
+      resetForm();
+    } catch {
+      setErrors({ form: 'Не удалось сохранить автомобиль. Попробуйте ещё раз.' });
+    }
 
   };
 
@@ -876,6 +873,15 @@ export function Vehicles() {
                           window.setTimeout(() => setCountrySuggestionsOpen(false), 120);
                         }}
                         placeholder="Россия (RUS)"
+                        clearable
+                        clearButtonAriaLabel="Очистить страну"
+                        onClear={() => {
+                          setForm((prev) => ({ ...prev, country: '' }));
+                          if (errors.country) {
+                            setErrors((prev) => ({ ...prev, country: undefined }));
+                          }
+                          setCountrySuggestionsOpen(false);
+                        }}
                       />
                       {countrySuggestionsOpen &&
                         filteredCountries.length > 0 && (
@@ -982,6 +988,7 @@ export function Vehicles() {
                       />
                     </div>
                   </div>
+                  {errors.form && <p className="text-xs text-red-600">{errors.form}</p>}
                   <DrawerFooter className="mt-8 p-0 sm:flex-row sm:justify-start">
                     <Button type="submit">Создать</Button>
                     <Button variant="secondary" onClick={() => handleDialogChange(false)}>
@@ -999,7 +1006,7 @@ export function Vehicles() {
 
         <div className="flex flex-wrap gap-4 items-end">
 
-          <div className="flex-1 min-w-[240px] max-w-[520px]">
+          <div className="w-full max-w-[390px]">
 
             <div className="relative">
 
@@ -1206,21 +1213,6 @@ export function Vehicles() {
           </div>
 
           <div className="flex items-end gap-2">
-
-            <Button
-              variant="destructive"
-              onClick={handleResetFilters}
-              className="h-[36px] px-4"
-            >
-
-              Сбросить
-
-            </Button>
-
-          </div>
-
-          <div className="ml-auto flex items-end">
-
             <Tooltip>
 
               <TooltipTrigger asChild>
@@ -1259,7 +1251,13 @@ export function Vehicles() {
               )}
 
             </Tooltip>
-
+            <Button
+              variant="destructive"
+              onClick={handleResetFilters}
+              className="h-[36px] px-4"
+            >
+              Сбросить
+            </Button>
           </div>
 
         </div>
@@ -1288,7 +1286,7 @@ export function Vehicles() {
                 {canViewOwnerNames
                   ? `${formatPlateNumber(vehicle.plateNumber)} · ${getOwnerShortLabel(vehicle.owner)}`
                   : formatPlateNumber(vehicle.plateNumber)}
-                <span className="text-[14px] leading-none font-semibold">x</span>
+                <span className="text-[14px] leading-none font-semibold">&times;</span>
               </button>
             );
           })}
@@ -1303,7 +1301,7 @@ export function Vehicles() {
               }`}
             >
               Номер: {selectedPlateLabel}
-              <span className="text-[14px] leading-none font-semibold">x</span>
+              <span className="text-[14px] leading-none font-semibold">&times;</span>
             </button>
           )}
           {canViewOwnerNames && selectedOwner && (
@@ -1319,14 +1317,14 @@ export function Vehicles() {
               }`}
             >
               Владелец: {selectedOwnerLabel}
-              <span className="text-[14px] leading-none font-semibold">x</span>
+              <span className="text-[14px] leading-none font-semibold">&times;</span>
             </button>
           )}
         </div>
 
       </FilterBar>
 
-      <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+      <div ref={tableHostRef} className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
 
         <div className="px-8 py-6 border-b border-border flex items-center justify-between">
 
@@ -1336,24 +1334,40 @@ export function Vehicles() {
 
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-hidden">
 
-          <table className="w-full table-fixed">
-
-            <colgroup>
-
-              <col className="w-[170px]" />
-
-              <col className="w-[220px]" />
-              {canViewOwnerNames && <col className="w-[220px]" />} 
-
-              <col className="w-[160px]" />
-
-              <col className="w-[210px]" />
-
-              <col className="w-[240px]" />
-
-            </colgroup>
+            <table className="w-full table-fixed">
+              {canViewOwnerNames ? (
+                <colgroup>
+                  {canManage ? (
+                    <>
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '19%' }} />
+                      <col style={{ width: '18%' }} />
+                      <col style={{ width: '17%' }} />
+                      <col style={{ width: '15%' }} />
+                      <col style={{ width: '17%' }} />
+                    </>
+                  ) : (
+                    <>
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '24%' }} />
+                      <col style={{ width: '20%' }} />
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '12%' }} />
+                    </>
+                  )}
+                </colgroup>
+              ) : (
+              <colgroup>
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '28%' }} />
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '20%' }} />
+              </colgroup>
+            )}
 
             <thead>
 
@@ -1365,19 +1379,23 @@ export function Vehicles() {
 
                 </th>
 
-                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
 
                   Номер
 
                 </th>
 
                                 {canViewOwnerNames && (
-                  <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                  <th className="text-center py-4 px-6 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
                     Владелец
                   </th>
                 )}
 
-                <th className="text-center py-4 px-4 text-[12px] font-bold uppercase tracking-wider">
+                <th
+                  className={`text-center py-4 text-[12px] font-bold uppercase tracking-wider ${
+                    canManage ? 'pl-4 pr-6' : 'px-6'
+                  }`}
+                >
 
                   <button
 
@@ -1385,7 +1403,9 @@ export function Vehicles() {
 
                     onClick={() => setDateSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
 
-                    className="inline-flex items-center justify-center gap-1 text-foreground/70 hover:text-foreground transition-colors text-[12px] font-bold uppercase tracking-wider"
+                      className={`inline-flex items-center justify-center gap-1 text-foreground/70 hover:text-foreground transition-colors text-[12px] font-bold uppercase tracking-wider ${
+                        canManage ? 'w-full' : ''
+                      }`}
 
                   >
 
@@ -1405,13 +1425,21 @@ export function Vehicles() {
 
                 </th>
 
-                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th
+                  className={`text-center py-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider ${
+                    canManage ? 'px-4' : 'px-6'
+                  }`}
+                >
 
                   Срок действия
 
                 </th>
 
-                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th
+                  className={`text-center py-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider ${
+                    canManage ? 'pl-6 pr-6' : 'px-6'
+                  }`}
+                >
 
                   Примечание
 
@@ -1425,11 +1453,15 @@ export function Vehicles() {
 
               {sortedVehicles.length > 0 ? (
 
-                sortedVehicles.map((vehicle) => {
+                displayedVehicles.map((vehicle) => {
 
                   const isUnlisted = vehicle.category === 'unlisted';
 
-                  const ownerLabel = isUnlisted ? 'Неизвестно' : vehicle.owner;
+                  const ownerLabel = isUnlisted
+                    ? 'Неизвестно'
+                    : isOrganizationName(vehicle.owner)
+                    ? vehicle.owner
+                    : getNameWithInitials(vehicle.owner, vehicle.owner);
 
                   const countryCode = getPlateCountryCode(vehicle.plateNumber, vehicle.country);
                   const accessState = getContractorAccessState(vehicle, new Date(), vehicles);
@@ -1455,7 +1487,7 @@ export function Vehicles() {
 
                         <span
 
-                          className={`inline-flex min-w-[130px] items-center justify-center px-3 py-1 rounded-full text-[12px] font-semibold ${
+                          className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-[12px] font-semibold ${
 
                             categoryColors[vehicle.category]
 
@@ -1469,7 +1501,7 @@ export function Vehicles() {
 
                       </td>
 
-                      <td className="py-4 px-4 text-center text-foreground/90 plate-text">
+                      <td className="py-4 px-6 text-center text-foreground/90 plate-text">
                         <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
                           <span aria-hidden="true" />
                           <span className="inline-flex items-center justify-center gap-2">
@@ -1510,22 +1542,30 @@ export function Vehicles() {
                       </td>
 
                                             {canViewOwnerNames && (
-                        <td className="py-4 px-4 text-center text-[14px] text-foreground/80">
-                          <span className="inline-flex items-center justify-center">
-                            {ownerLabel}
-                          </span>
-                        </td>
-                      )}
-                      <td className="py-4 px-4 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
+                      <td className="py-4 px-6 text-center text-[14px] text-foreground/80">
+                        <span className="inline-flex max-w-full items-center justify-center break-words text-center">
+                          {ownerLabel}
+                        </span>
+                      </td>
+                    )}
+                      <td
+                        className={`py-4 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground ${
+                          canManage ? 'pl-4 pr-6' : 'px-6'
+                        }`}
+                      >
 
                         {vehicle.addedDate}
 
                       </td>
 
-                      <td className="py-4 px-4 text-center text-[14px] text-foreground/70">
+                      <td
+                        className={`py-4 text-center text-[14px] text-foreground/70 ${
+                          canManage ? 'px-4' : 'px-6'
+                        }`}
+                      >
                         {accessState ? (
                           <span
-                            className={`inline-flex min-w-[144px] items-center justify-center rounded-full px-3 py-1 text-[13px] font-medium ${
+                            className={`mx-auto inline-flex w-[150px] items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-[13px] font-medium ${
                               accessState.isExpired
                                 ? 'bg-red-50 text-red-500'
                                 : 'bg-emerald-50 text-emerald-600'
@@ -1534,11 +1574,15 @@ export function Vehicles() {
                             {accessState.accessDate} {accessState.statusLabel}
                           </span>
                         ) : (
-                          '—'
+                          <span className="mx-auto inline-flex w-[150px] items-center justify-center">—</span>
                         )}
                       </td>
 
-                      <td className="py-4 px-4 text-center text-[14px] text-foreground/70">
+                      <td
+                        className={`py-4 text-center text-[14px] text-foreground/70 break-words ${
+                          canManage ? 'pl-6 pr-6' : 'px-6'
+                        }`}
+                      >
 
                         {vehicle.notes || '—'}
 
@@ -1563,11 +1607,58 @@ export function Vehicles() {
                 </tr>
 
               )}
+              {tableFillerRowCount > 0 &&
+                Array.from({ length: tableFillerRowCount }).map((_, index) => (
+                  <tr key={`vehicle-filler-${currentPage}-${index}`} aria-hidden="true">
+                    <td
+                      colSpan={canViewOwnerNames ? 6 : 5}
+                      className="h-[68px] border-b border-border/40 bg-muted/10"
+                    />
+                  </tr>
+                ))}
 
             </tbody>
 
           </table>
 
+        </div>
+
+        <div className="px-8 py-5 border-t border-border flex items-center justify-between bg-muted/20">
+          <div className="text-sm font-medium text-muted-foreground">
+            Показано {displayedVehicles.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-{Math.min(currentPage * itemsPerPage, sortedVehicles.length)} из {sortedVehicles.length}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4 text-foreground" strokeWidth={2} />
+            </button>
+
+            {totalPages > 0 && [...Array(totalPages)].map((_, i) => (
+              <button
+                key={i}
+                onClick={() => handlePageChange(i + 1)}
+                className={`px-3 py-1 rounded text-sm transition-smooth ${
+                  currentPage === i + 1
+                    ? 'bg-primary text-primary-foreground'
+                    : 'border border-border hover:bg-muted/50'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+
+            <button
+              onClick={() => handlePageChange(Math.min(totalPages || 1, currentPage + 1))}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4 text-foreground" strokeWidth={2} />
+            </button>
+          </div>
         </div>
 
       </div>
@@ -1577,6 +1668,7 @@ export function Vehicles() {
   );
 
 }
+
 
 
 

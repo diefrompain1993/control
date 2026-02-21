@@ -46,12 +46,12 @@ export function Button({
   type = 'button',
   className
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center gap-2 rounded transition-all duration-200 font-normal';
+  const baseStyles = 'inline-flex items-center gap-2 rounded transition-colors duration-200 font-normal';
   
   const variantStyles = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 transform hover:scale-105 active:scale-95',
-    secondary: 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transform hover:scale-105 active:scale-95',
-    destructive: 'bg-red-600 text-white hover:bg-red-700 transform hover:scale-105 active:scale-95'
+    primary: 'bg-blue-600 text-white hover:bg-blue-700',
+    secondary: 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50',
+    destructive: 'bg-red-600 text-white hover:bg-red-700'
   };
   
   const sizeStyles = {
@@ -59,7 +59,7 @@ export function Button({
     md: 'px-4 py-2 text-sm'
   };
   
-  const disabledStyles = 'disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none';
+  const disabledStyles = 'disabled:opacity-50 disabled:cursor-not-allowed';
 
   return (
     <button

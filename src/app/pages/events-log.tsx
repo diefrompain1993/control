@@ -1,5 +1,5 @@
 ﻿import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CartesianGrid,
   Line,
@@ -29,6 +29,8 @@ import { MOCK_EVENTS, type EventLogEntry } from '@/app/data/events';
 import { getStoredVehiclesByCategory, mergeVehicles } from '@/app/utils/vehicleStore';
 import { formatDateInput, parseDateRange } from '@/app/utils/dateFilter';
 import { isContractorOwnerExpiredOnDate } from '@/app/utils/contractorAccess';
+import { getRoutePath } from '@/app/routesConfig';
+import { usePaginatedPageScroll } from '@/app/hooks/use-paginated-page-scroll';
 
 type Event = EventLogEntry;
 const SIDEBAR_SET_COLLAPSED_EVENT = 'app:sidebar:set-collapsed';
@@ -138,7 +140,10 @@ const pluralizeEntries = (value: number) => {
 
 export function EventsLog() {
   const { user } = useAuth();
+  const isGuard = user?.role === 'guard';
+  const isOfficeAdmin = user?.role === 'office_admin';
   const canViewOwnerNames = user?.role !== 'guard';
+  const canToggleContractorRows = user?.role !== 'guard';
   const [currentPage, setCurrentPage] = useState(1);
   const [dateFilter, setDateFilter] = useState('');
   const [plateQuery, setPlateQuery] = useState('');
@@ -149,11 +154,19 @@ export function EventsLog() {
   const [contractorTimeFrom, setContractorTimeFrom] = useState('');
   const [contractorTimeTo, setContractorTimeTo] = useState('');
   const [orgSuggestionsOpen, setOrgSuggestionsOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [selectedContractorOwner, setSelectedContractorOwner] = useState<string | null>(null);
   const [contractorActivityRange, setContractorActivityRange] = useState<'today' | 'week' | 'month'>('today');
+  const [contractorChartScrollLeft, setContractorChartScrollLeft] = useState(0);
   const contractorAnalyticsRef = useRef<HTMLDivElement | null>(null);
+  const contractorChartScrollRef = useRef<HTMLDivElement | null>(null);
+  const contractorChartScrollRafRef = useRef<number | null>(null);
   const lastSelectedContractorOwnerRef = useRef<string | null>(null);
+  const lastAutoScrollSignatureRef = useRef<string>('');
+  const lastAutoRangeOwnerRef = useRef<string>('');
   const isLimitedView = !user || user.role === 'admin' || user.role === 'guard';
+  const showCameraColumn = !isLimitedView;
+  const showStatusColumn = !isLimitedView || user?.role === 'guard';
   const showExtraFilters = ['Подрядчик', 'Белый', 'Чёрный'].includes(statusFilter);
   const isContractorFilter = statusFilter === 'Подрядчик';
 
@@ -168,6 +181,12 @@ export function EventsLog() {
   };
 
   const itemsPerPage = 10;
+  const { handlePageChange: handleTablePageChange, resetPageScrollMemory: resetTablePageScrollMemory } =
+    usePaginatedPageScroll({
+      currentPage,
+      setCurrentPage,
+      hostRef: contractorAnalyticsRef
+    });
 
   const countryOptions = useMemo(() => {
     const present = new Set(
@@ -308,6 +327,7 @@ export function EventsLog() {
   ]);
 
   useEffect(() => {
+    resetTablePageScrollMemory();
     setCurrentPage(1);
   }, [
     dateFilter,
@@ -317,8 +337,36 @@ export function EventsLog() {
     contractorQuery,
     contractorTimeFrom,
     contractorTimeTo,
-    dateSort
+    dateSort,
+    resetTablePageScrollMemory
   ]);
+
+  useEffect(() => {
+    const detectSidebarState = () => {
+      const aside = document.querySelector('aside');
+      if (!aside) return;
+      setIsSidebarCollapsed(aside.getBoundingClientRect().width <= 100);
+    };
+    const handleSetCollapsed = (event: Event) => {
+      const customEvent = event as CustomEvent<{ collapsed?: boolean }>;
+      if (typeof customEvent.detail?.collapsed === 'boolean') {
+        setIsSidebarCollapsed(customEvent.detail.collapsed);
+        return;
+      }
+      detectSidebarState();
+    };
+
+    detectSidebarState();
+    window.addEventListener(SIDEBAR_SET_COLLAPSED_EVENT, handleSetCollapsed as EventListener);
+    window.addEventListener('resize', detectSidebarState);
+    return () => {
+      window.removeEventListener(
+        SIDEBAR_SET_COLLAPSED_EVENT,
+        handleSetCollapsed as EventListener
+      );
+      window.removeEventListener('resize', detectSidebarState);
+    };
+  }, []);
 
   useEffect(() => {
     if (!showExtraFilters) {
@@ -337,9 +385,20 @@ export function EventsLog() {
     const params = new URLSearchParams(window.location.search);
     const plateParam = params.get('plate') ?? '';
     const platesParam = params.get('plates') ?? '';
-    const ownerParam = params.get('owner') ?? '';
+    const ownerParam = (params.get('owner') ?? '').trim();
     const statusParam = params.get('status') ?? '';
     const allowedStatuses = ['Белый', 'Чёрный', 'Подрядчик', 'Нет в списках'];
+    const shouldOpenContractorPanel =
+      canViewOwnerNames && Boolean(ownerParam) && statusParam === 'Подрядчик';
+
+    if (shouldOpenContractorPanel) {
+      // For contractor links we always show organization-level activity.
+      setPlateQuery('');
+      setStatusFilter('Подрядчик');
+      setContractorQuery(ownerParam);
+      setSelectedContractorOwner(ownerParam);
+      return;
+    }
 
     if (platesParam) {
       setPlateQuery(platesParam);
@@ -347,6 +406,7 @@ export function EventsLog() {
       setPlateQuery(plateParam);
     }
     if (canViewOwnerNames && ownerParam) {
+      setSelectedContractorOwner(null);
       setContractorQuery(ownerParam);
     }
     if (allowedStatuses.includes(statusParam)) {
@@ -392,18 +452,23 @@ export function EventsLog() {
 
     if (datedEvents.length === 0) return [];
 
-    const anchorDate = datedEvents.reduce((latest, current) =>
-      current.date.getTime() > latest.getTime() ? current.date : latest
-    , datedEvents[0].date);
-    const anchorDay = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), anchorDate.getDate());
+    const now = new Date();
+    const referenceDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     if (contractorActivityRange === 'today') {
       const buckets = new Map<number, { entries: number; times: string[] }>();
-      for (let hour = 6; hour <= 21; hour += 1) {
+      for (let hour = 0; hour <= 23; hour += 1) {
         buckets.set(hour, { entries: 0, times: [] });
       }
 
       datedEvents.forEach(({ event, date }) => {
+        if (
+          date.getDate() !== referenceDay.getDate() ||
+          date.getMonth() !== referenceDay.getMonth() ||
+          date.getFullYear() !== referenceDay.getFullYear()
+        ) {
+          return;
+        }
         const hour = parseTimeToHour(event.time);
         if (hour === null || !buckets.has(hour)) return;
         const bucket = buckets.get(hour);
@@ -424,8 +489,8 @@ export function EventsLog() {
     }
 
     const daysBack = contractorActivityRange === 'week' ? 6 : 29;
-    const startDay = new Date(anchorDay);
-    startDay.setDate(startDay.getDate() - daysBack);
+    const startDay = new Date(referenceDay);
+    startDay.setDate(referenceDay.getDate() - daysBack);
 
     const buckets = new Map<string, { label: string; entries: number }>();
     for (let index = 0; index <= daysBack; index += 1) {
@@ -438,7 +503,7 @@ export function EventsLog() {
 
     datedEvents.forEach(({ date }) => {
       const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      if (dayStart < startDay || dayStart > anchorDay) return;
+      if (dayStart < startDay || dayStart > referenceDay) return;
       const key = dayStart.toISOString().slice(0, 10);
       const bucket = buckets.get(key);
       if (!bucket) return;
@@ -449,15 +514,98 @@ export function EventsLog() {
   }, [selectedContractorEvents, contractorPanelNormalized, contractorActivityRange]);
 
   const contractorPanelOpen = Boolean(selectedContractorOwner);
+  const isCompactTableLayout = contractorPanelOpen;
   const selectedContractorEntriesTotal = useMemo(
     () => selectedContractorActivity.reduce((sum, point) => sum + point.entries, 0),
     [selectedContractorActivity]
   );
+  const handleOpenContractorExport = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set('export', 'contractors');
+    params.set('period', contractorActivityRange === 'month' ? '1m' : contractorActivityRange);
+    const contractorName = contractorPanelOwner?.trim();
+    if (contractorName) {
+      params.set('contractor', contractorName);
+    }
+    const targetPath = `${getRoutePath('export')}?${params.toString()}`;
+    window.history.pushState({}, '', targetPath);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, [contractorActivityRange, contractorPanelOwner]);
   const contractorActivityMax = useMemo(() => {
     const maxValue = Math.max(0, ...selectedContractorActivity.map((point) => point.entries));
     if (maxValue <= 6) return 6;
     return Math.ceil(maxValue / 3) * 3;
   }, [selectedContractorActivity]);
+  const lastActiveContractorPointIndex = useMemo(() => {
+    for (let index = selectedContractorActivity.length - 1; index >= 0; index -= 1) {
+      if ((selectedContractorActivity[index]?.entries ?? 0) > 0) {
+        return index;
+      }
+    }
+    return -1;
+  }, [selectedContractorActivity]);
+  const targetContractorPointIndex = useMemo(
+    () => (lastActiveContractorPointIndex >= 0 ? lastActiveContractorPointIndex : 0),
+    [lastActiveContractorPointIndex]
+  );
+  const contractorChartMinWidth = useMemo(() => {
+    const pointWidth =
+      contractorActivityRange === 'today'
+        ? isSidebarCollapsed
+          ? 56
+          : 50
+        : contractorActivityRange === 'week'
+        ? isSidebarCollapsed
+          ? 94
+          : 84
+        : isSidebarCollapsed
+        ? 68
+        : 60;
+    return Math.max(760, selectedContractorActivity.length * pointWidth);
+  }, [selectedContractorActivity.length, contractorActivityRange, isSidebarCollapsed]);
+
+  useEffect(() => {
+    if (!selectedContractorOwner) {
+      lastAutoRangeOwnerRef.current = '';
+      return;
+    }
+
+    const ownerNormalized = normalizeOrganizationName(selectedContractorOwner);
+    if (!ownerNormalized || lastAutoRangeOwnerRef.current === ownerNormalized) return;
+
+    const now = new Date();
+    const referenceDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(referenceDay);
+    weekStart.setDate(referenceDay.getDate() - 6);
+    const monthStart = new Date(referenceDay);
+    monthStart.setDate(referenceDay.getDate() - 29);
+
+    const contractorDates = selectedContractorEvents
+      .map((event) => parseDateValue(event.date))
+      .filter((value): value is Date => value !== null)
+      .map((date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()));
+
+    if (contractorDates.length === 0) {
+      lastAutoRangeOwnerRef.current = ownerNormalized;
+      return;
+    }
+
+    const hasTodayEntries = contractorDates.some(
+      (date) => date.getTime() === referenceDay.getTime()
+    );
+    const hasWeekEntries = contractorDates.some(
+      (date) => date.getTime() >= weekStart.getTime() && date.getTime() <= referenceDay.getTime()
+    );
+
+    const nextRange: 'today' | 'week' | 'month' = hasTodayEntries
+      ? 'today'
+      : hasWeekEntries
+      ? 'week'
+      : 'month';
+
+    setContractorActivityRange(nextRange);
+    lastAutoRangeOwnerRef.current = ownerNormalized;
+  }, [selectedContractorOwner, selectedContractorEvents]);
 
   useEffect(() => {
     if (selectedContractorOwner) {
@@ -483,6 +631,8 @@ export function EventsLog() {
     const handlePointerDownOutside = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
+      const targetElement = target instanceof Element ? target : null;
+      if (targetElement?.closest('[data-sidebar-toggle="true"]')) return;
       if (contractorAnalyticsRef.current?.contains(target)) return;
       setSelectedContractorOwner(null);
     };
@@ -493,11 +643,77 @@ export function EventsLog() {
     };
   }, [selectedContractorOwner]);
 
+  useEffect(() => {
+    if (!contractorPanelOpen) {
+      lastAutoScrollSignatureRef.current = '';
+      return;
+    }
+    const container = contractorChartScrollRef.current;
+    if (!container || selectedContractorActivity.length === 0) return;
+    const signature = [
+      contractorPanelOwner ?? '',
+      contractorActivityRange,
+      selectedContractorActivity.length,
+      targetContractorPointIndex,
+      isSidebarCollapsed ? 'collapsed' : 'expanded'
+    ].join('|');
+    if (lastAutoScrollSignatureRef.current === signature) return;
+
+    const scrollToTargetPoint = (behavior: ScrollBehavior) => {
+      const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+      if (maxScrollLeft <= 0) return false;
+
+      const pointWidth = contractorChartMinWidth / selectedContractorActivity.length;
+      const pointCenter = (targetContractorPointIndex + 0.5) * pointWidth;
+      const targetScrollLeft = Math.max(
+        0,
+        Math.min(maxScrollLeft, pointCenter - container.clientWidth / 2)
+      );
+      container.scrollTo({ left: targetScrollLeft, behavior });
+      return true;
+    };
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      scrollToTargetPoint('auto');
+    });
+    const settleTimeoutId = window.setTimeout(() => {
+      const didScroll = scrollToTargetPoint('smooth');
+      if (didScroll) {
+        lastAutoScrollSignatureRef.current = signature;
+      }
+    }, 520);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+      window.clearTimeout(settleTimeoutId);
+    };
+  }, [
+    contractorPanelOpen,
+    selectedContractorActivity,
+    contractorChartMinWidth,
+    targetContractorPointIndex,
+    contractorActivityRange,
+    contractorPanelOwner,
+    isSidebarCollapsed
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (contractorChartScrollRafRef.current !== null) {
+        window.cancelAnimationFrame(contractorChartScrollRafRef.current);
+      }
+    };
+  }, []);
+
   const totalPages = Math.ceil(sortedEvents.length / itemsPerPage);
   const displayedEvents = sortedEvents.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+  const eventsTableColSpan =
+    2 + (showCameraColumn ? 1 : 0) + (canViewOwnerNames ? 1 : 0) + (showStatusColumn ? 1 : 0);
+  const tableFillerRowCount =
+    displayedEvents.length > 0 ? Math.max(0, itemsPerPage - displayedEvents.length) : 0;
 
   const handleResetFilters = () => {
     setDateFilter('');
@@ -510,6 +726,7 @@ export function EventsLog() {
     setOrgSuggestionsOpen(false);
     setSelectedContractorOwner(null);
     setDateSort('desc');
+    resetTablePageScrollMemory();
     setCurrentPage(1);
   };
 
@@ -536,6 +753,7 @@ export function EventsLog() {
                 value={dateFilter}
                 onChange={(value) => setDateFilter(formatDateInput(value))}
                 placeholder={'ДД.ММ.ГГГГ'}
+                className={isOfficeAdmin ? 'h-[36px]' : undefined}
               />
             </div>
 
@@ -546,6 +764,9 @@ export function EventsLog() {
                 onChange={setPlateQuery}
                 placeholder={'А123ВС'}
                 type="text"
+                clearable
+                clearButtonAriaLabel="Очистить номер"
+                className={isOfficeAdmin ? 'h-[36px]' : undefined}
               />
             </div>
 
@@ -557,7 +778,7 @@ export function EventsLog() {
                 placeholder={'Все номера'}
                 options={countryOptions}
                 size="md"
-                className="h-[36px]"
+                className={isOfficeAdmin ? 'h-[36px]' : 'h-[36px]'}
               />
             </div>
 
@@ -569,7 +790,7 @@ export function EventsLog() {
                 placeholder={'Все списки'}
                 options={listOptions}
                 size="md"
-                className="h-[36px]"
+                className={isOfficeAdmin ? 'h-[36px]' : 'h-[36px]'}
               />
             </div>
 
@@ -673,25 +894,32 @@ export function EventsLog() {
         className={`grid items-start transition-[grid-template-columns,gap] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
           contractorPanelOpen ? 'gap-4' : 'gap-0'
         }`}
+        onMouseDown={(event) => {
+          if (!contractorPanelOpen) return;
+          if (event.target !== event.currentTarget) return;
+          setSelectedContractorOwner(null);
+        }}
         style={{
           gridTemplateColumns: contractorPanelOpen
-            ? 'minmax(320px, 42%) minmax(0, 1fr)'
+            ? isSidebarCollapsed
+              ? 'minmax(300px, 35%) minmax(0, 1fr)'
+              : 'minmax(280px, 31%) minmax(0, 1fr)'
             : '0px minmax(0, 1fr)'
         }}
       >
         <div
-          className={`overflow-hidden will-change-[opacity,transform,max-width] transition-[opacity,transform,max-width,filter] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
+          className={`self-start mt-0 overflow-hidden transition-[opacity,max-width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
             contractorPanelOpen
-              ? 'opacity-100 translate-x-0 max-w-[1000px] blur-0'
-              : 'opacity-0 -translate-x-4 max-w-0 pointer-events-none blur-[1px]'
+              ? 'opacity-100 max-w-[1000px]'
+              : 'opacity-0 max-w-0 pointer-events-none'
           }`}
         >
           <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-            <div className="px-6 py-5 border-b border-border flex items-center justify-between gap-3">
+            <div className="px-8 py-6 border-b border-border flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-[20px] font-bold text-foreground tracking-tight">Активность въездов</h2>
                 {contractorPanelOwner && (
-                  <p className="text-sm text-muted-foreground mt-1 truncate">{contractorPanelOwner}</p>
+                  <p className="mt-1 truncate text-sm font-medium text-foreground/75">{contractorPanelOwner}</p>
                 )}
               </div>
               <div
@@ -719,69 +947,99 @@ export function EventsLog() {
               </div>
             </div>
 
-            <div className="h-[560px] p-5">
-              <ResponsiveContainer width="100%" height="92%">
-                <LineChart data={selectedContractorActivity} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="4 4" stroke="#e8ecf1" />
-                  <XAxis
-                    dataKey="label"
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fill: '#97A0AF', fontSize: 12 }}
-                    tickMargin={10}
-                    minTickGap={16}
-                    height={34}
-                    tickFormatter={(value) =>
-                      contractorActivityRange === 'today'
-                        ? String(value).replace(':00', '')
-                        : String(value)
-                    }
-                    interval={
-                      contractorActivityRange === 'today'
-                        ? 1
-                        : contractorActivityRange === 'month'
-                        ? 3
-                        : 0
-                    }
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fill: '#97A0AF', fontSize: 12 }}
-                    domain={[0, contractorActivityMax]}
-                    allowDecimals={false}
-                  />
-                  <RechartsTooltip
-                    cursor={{ stroke: '#d9deea', strokeWidth: 1 }}
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const value = Number(payload[0]?.value ?? 0);
-                      return (
-                        <div className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg">
-                          {value} {pluralizeEntries(value)}
-                        </div>
-                      );
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="entries"
-                    stroke="#5b65f5"
-                    strokeWidth={3}
-                    dot={false}
-                    activeDot={{ r: 5, fill: '#5b65f5', stroke: '#ffffff', strokeWidth: 2 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="h-[clamp(432px,69vh,572px)] px-5 pt-5 pb-6 flex flex-col">
+              <div
+                ref={contractorChartScrollRef}
+                className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden pb-2"
+                onScroll={() => {
+                  const container = contractorChartScrollRef.current;
+                  if (!container) return;
+                  if (contractorChartScrollRafRef.current !== null) {
+                    window.cancelAnimationFrame(contractorChartScrollRafRef.current);
+                  }
+                  contractorChartScrollRafRef.current = window.requestAnimationFrame(() => {
+                    setContractorChartScrollLeft(container.scrollLeft);
+                  });
+                }}
+              >
+                <div style={{ minWidth: `${contractorChartMinWidth}px`, height: '100%' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={selectedContractorActivity} margin={{ top: 8, right: 10, left: 0, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="4 4" stroke="#e8ecf1" />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        axisLine={false}
+                        padding={{ left: 6, right: 26 }}
+                        tick={{ fill: '#97A0AF', fontSize: 12 }}
+                        tickMargin={10}
+                        minTickGap={contractorActivityRange === 'month' ? 24 : 14}
+                        height={34}
+                        tickFormatter={(value) =>
+                          contractorActivityRange === 'today'
+                            ? String(value).replace(':00', '')
+                            : String(value)
+                        }
+                        interval={0}
+                      />
+                      <YAxis
+                        width={30}
+                        tickMargin={6}
+                        tickLine={false}
+                        axisLine={{ stroke: '#111827', strokeOpacity: 0.24, strokeWidth: 1 }}
+                        tick={{ fill: '#97A0AF', fontSize: 12 }}
+                        domain={[0, contractorActivityMax]}
+                        allowDecimals={false}
+                        tickFormatter={(value) => (Number(value) === 0 ? '' : String(value))}
+                        style={{
+                          transform: `translateX(${contractorChartScrollLeft}px)`
+                        }}
+                      />
+                      <RechartsTooltip
+                        cursor={{ stroke: '#d9deea', strokeWidth: 1 }}
+                        offset={10}
+                        wrapperStyle={{ pointerEvents: 'none' }}
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const value = Number(payload[0]?.value ?? 0);
+                          return (
+                            <div className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg">
+                              {value} {pluralizeEntries(value)}
+                            </div>
+                          );
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="entries"
+                        stroke="#5b65f5"
+                        strokeWidth={3}
+                        dot={false}
+                        activeDot={{ r: 5, fill: '#5b65f5', stroke: '#ffffff', strokeWidth: 2 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
-              <div className="mt-4 text-sm text-muted-foreground">
-                Всего въездов подрядчика за период: {selectedContractorEntriesTotal}
+              <div className="mt-[21px] flex min-h-9 items-center justify-between gap-3">
+                <div className="text-sm text-muted-foreground leading-none">
+                  Всего въездов подрядчика за период: {selectedContractorEntriesTotal}
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={handleOpenContractorExport}
+                  icon={<Download className="w-4 h-4" />}
+                  className="h-9 px-4"
+                >
+                  Экспорт
+                </Button>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="min-w-0 bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="min-w-0 self-start mt-0 bg-white rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="px-8 py-6 border-b border-border flex items-center justify-between">
             <h2 className="text-[20px] font-bold text-foreground tracking-tight">
               События распознавания
@@ -790,7 +1048,7 @@ export function EventsLog() {
           </div>
 
           <div
-            className="overflow-x-auto overflow-y-visible"
+            className="overflow-x-auto overflow-y-hidden"
             onClick={(event) => {
               if (!contractorPanelOpen) return;
               if (event.target === event.currentTarget) {
@@ -799,13 +1057,51 @@ export function EventsLog() {
             }}
           >
             <table className="w-full table-fixed">
+              <colgroup>
+                {isGuard ? (
+                  <>
+                    <col style={{ width: showStatusColumn ? '34%' : '50%' }} />
+                    <col style={{ width: showStatusColumn ? '33%' : '50%' }} />
+                    {showStatusColumn && <col style={{ width: '33%' }} />}
+                  </>
+                ) : (
+                  <>
+                    <col style={{ width: isCompactTableLayout ? 196 : 220 }} />
+                    {showCameraColumn && <col style={{ width: isCompactTableLayout ? 108 : 124 }} />}
+                    <col style={{ width: isCompactTableLayout ? 196 : 220 }} />
+                    {canViewOwnerNames && <col style={{ width: isCompactTableLayout ? 176 : 210 }} />}
+                    {showStatusColumn && <col style={{ width: isCompactTableLayout ? 148 : 170 }} />}
+                  </>
+                )}
+              </colgroup>
               <thead>
                 <tr className="bg-muted/20 border-b border-border">
-                  <th className="text-center py-4 px-4 text-[12px] font-bold uppercase tracking-wider">
+                  <th
+                    className={`py-4 text-[12px] font-bold uppercase tracking-wider ${
+                      isGuard
+                        ? 'pl-8 pr-3 text-left'
+                        : isOfficeAdmin
+                          ? 'pl-8 pr-3 text-left'
+                        : isCompactTableLayout
+                          ? 'pl-4 pr-2 text-left'
+                          : 'pl-5 pr-3 text-left'
+                    }`}
+                  >
                     <button
                       type="button"
                       onClick={() => setDateSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                      className="inline-flex items-center justify-center gap-1 text-foreground/70 hover:text-foreground transition-colors text-[12px] font-bold uppercase tracking-wider"
+                      style={
+                        isOfficeAdmin
+                          ? { paddingLeft: '18px' }
+                          : isGuard
+                            ? { paddingLeft: '18px' }
+                            : undefined
+                      }
+                      className={`inline-flex items-center gap-1 text-foreground/70 hover:text-foreground transition-colors text-[12px] font-bold uppercase tracking-wider ${
+                        isGuard || isOfficeAdmin
+                          ? 'w-full appearance-none border-0 bg-transparent p-0 m-0 text-left justify-start'
+                          : ''
+                      }`}
                     >
                       Дата и время
                       {dateSort === 'asc' ? (
@@ -815,21 +1111,37 @@ export function EventsLog() {
                       )}
                     </button>
                   </th>
-                  {!isLimitedView && (
-                    <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider w-36">
+                  {showCameraColumn && (
+                    <th
+                      className={`py-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider ${
+                        isCompactTableLayout ? 'px-0 text-center' : 'pl-3 pr-3 text-left'
+                      }`}
+                    >
                       Камера
                     </th>
                   )}
-                  <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                  <th
+                    className={`text-center py-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider ${
+                      isCompactTableLayout ? 'px-3' : 'px-4'
+                    }`}
+                  >
                     Номер
                   </th>
                   {canViewOwnerNames && (
-                    <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                    <th
+                      className={`text-center py-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider ${
+                        isCompactTableLayout ? 'px-3' : 'px-4'
+                      }`}
+                    >
                       Владелец
                     </th>
                   )}
-                  {!isLimitedView && (
-                    <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider w-44">
+                  {showStatusColumn && (
+                    <th
+                      className={`py-4 text-center text-[12px] font-bold text-foreground/70 uppercase tracking-wider ${
+                        isGuard ? 'px-4' : isCompactTableLayout ? 'pl-2 pr-4' : 'pl-3 pr-5'
+                      }`}
+                    >
                       Список
                     </th>
                   )}
@@ -840,7 +1152,7 @@ export function EventsLog() {
                   displayedEvents.map((event, index) => {
                     const isUnrecognized = event.status === 'Нет в списках';
                     const ownerLabel = isUnrecognized ? 'Неизвестно' : event.owner;
-                    const countryCode = getPlateCountryCode(event.plateNumber);
+                    const countryCode = getPlateCountryCode(event.plateNumber, event.country);
                     const formattedPlate = formatPlateNumber(event.plateNumber);
                     const contractorExpired =
                       event.status === 'Подрядчик' &&
@@ -856,20 +1168,9 @@ export function EventsLog() {
                       if (!isContractorRow) return;
                       setSelectedContractorOwner((prev) =>
                         {
-                          const nextOwner =
-                            prev && normalizeOrganizationName(prev) === normalizedEventOwner
-                              ? null
-                              : event.owner;
-
-                          if (nextOwner) {
-                            window.dispatchEvent(
-                              new CustomEvent(SIDEBAR_SET_COLLAPSED_EVENT, {
-                                detail: { collapsed: true }
-                              })
-                            );
-                          }
-
-                          return nextOwner;
+                          return prev && normalizeOrganizationName(prev) === normalizedEventOwner
+                            ? null
+                            : event.owner;
                         }
                       );
                     };
@@ -877,24 +1178,50 @@ export function EventsLog() {
                     return (
                       <tr
                         key={index}
-                        onClick={isContractorRow ? handleContractorToggle : undefined}
+                        onClick={
+                          isContractorRow && canToggleContractorRows
+                            ? handleContractorToggle
+                            : undefined
+                        }
                         className={`border-b border-border/50 transition-smooth ${
                           isContractorRow
                             ? isSelectedContractor
-                              ? 'bg-slate-200 hover:bg-slate-300 cursor-pointer'
-                              : 'hover:bg-slate-100 cursor-pointer'
+                              ? canToggleContractorRows
+                                ? 'bg-slate-200 hover:bg-slate-300 cursor-pointer'
+                                : 'bg-slate-200 hover:bg-slate-200'
+                              : canToggleContractorRows
+                                ? 'hover:bg-slate-100 cursor-pointer'
+                                : 'hover:bg-muted/30'
                             : 'hover:bg-muted/30'
                         }`}
                       >
-                        <td className="py-4 px-4 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
+                        <td
+                          className={`py-4 text-[14px] text-foreground/80 transition-colors hover:text-foreground ${
+                            isGuard
+                              ? 'pl-8 pr-3 text-left font-mono'
+                              : isOfficeAdmin
+                                ? 'pl-8 pr-3 text-left font-mono'
+                              : isCompactTableLayout
+                                ? 'pl-4 pr-2 text-left font-mono'
+                                : 'pl-5 pr-3 text-left font-mono'
+                          }`}
+                        >
                           {`${event.date} ${event.time}`}
                         </td>
-                        {!isLimitedView && (
-                          <td className="py-4 px-4 text-center text-[14px] text-foreground/80">
+                        {showCameraColumn && (
+                          <td
+                            className={`py-4 text-[14px] text-foreground/80 ${
+                              isCompactTableLayout ? 'px-0 text-center' : 'pl-3 pr-3 text-left'
+                            }`}
+                          >
                             {event.camera}
                           </td>
                         )}
-                        <td className="py-4 px-4 text-center text-foreground/90 plate-text">
+                        <td
+                          className={`py-4 text-center text-foreground/90 plate-text ${
+                            isCompactTableLayout ? 'px-3' : 'px-4'
+                          }`}
+                        >
                           <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
                             <span aria-hidden="true" />
                             <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
@@ -930,7 +1257,11 @@ export function EventsLog() {
                           </div>
                         </td>
                         {canViewOwnerNames && (
-                          <td className="py-4 px-4 text-center text-[14px] text-foreground/80">
+                          <td
+                            className={`py-4 text-center text-[14px] text-foreground/80 ${
+                              isCompactTableLayout ? 'px-3' : 'px-4'
+                            }`}
+                          >
                             <div className="flex flex-col items-center gap-1">
                               {isContractorRow ? (
                                 <span className="max-w-full text-foreground/80">
@@ -947,12 +1278,20 @@ export function EventsLog() {
                             </div>
                           </td>
                         )}
-                        {!isLimitedView && (
-                          <td className="py-4 px-4 text-center">
+                        {showStatusColumn && (
+                          <td
+                            className={`py-4 text-center ${
+                              isGuard ? 'px-4' : isCompactTableLayout ? 'pl-2 pr-4' : 'pl-3 pr-5'
+                            }`}
+                          >
                             {isContractorRow ? (
                               <span className="inline-flex">
                                 <span
-                                  className={`inline-flex min-w-[140px] items-center justify-center px-3 py-1 rounded-full text-[13px] font-medium ${getStatusStyles(
+                                  className={`inline-flex items-center justify-center whitespace-nowrap rounded-full py-1 font-medium ${
+                                    isCompactTableLayout
+                                      ? 'min-w-[124px] px-2.5 text-[12px]'
+                                      : 'min-w-[140px] px-3 text-[13px]'
+                                  } ${getStatusStyles(
                                     event.status
                                   )} ${isSelectedContractor ? 'ring-2 ring-slate-300' : ''}`}
                                 >
@@ -961,7 +1300,11 @@ export function EventsLog() {
                               </span>
                             ) : (
                               <span
-                                className={`inline-flex min-w-[140px] items-center justify-center px-3 py-1 rounded-full text-[13px] font-medium ${getStatusStyles(
+                                className={`inline-flex items-center justify-center whitespace-nowrap rounded-full py-1 font-medium ${
+                                  isCompactTableLayout
+                                    ? 'min-w-[124px] px-2.5 text-[12px]'
+                                    : 'min-w-[140px] px-3 text-[13px]'
+                                } ${getStatusStyles(
                                   event.status
                                 )}`}
                               >
@@ -976,13 +1319,19 @@ export function EventsLog() {
                 ) : (
                   <tr>
                     <td
-                      colSpan={(isLimitedView ? 2 : 4) + (canViewOwnerNames ? 1 : 0)}
+                      colSpan={eventsTableColSpan}
                       className="py-8 text-center text-muted-foreground"
                     >
                       Нет данных
                     </td>
                   </tr>
                 )}
+                {tableFillerRowCount > 0 &&
+                  Array.from({ length: tableFillerRowCount }).map((_, index) => (
+                    <tr key={`filler-${currentPage}-${index}`} aria-hidden="true">
+                      <td colSpan={eventsTableColSpan} className="h-[54px] border-b border-border/40 bg-muted/10" />
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -995,7 +1344,7 @@ export function EventsLog() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                onClick={() => handleTablePageChange(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
                 className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1005,7 +1354,7 @@ export function EventsLog() {
               {totalPages > 0 && [...Array(totalPages)].map((_, i) => (
                 <button
                   key={i}
-                  onClick={() => setCurrentPage(i + 1)}
+                  onClick={() => handleTablePageChange(i + 1)}
                   className={`px-3 py-1 rounded text-sm transition-smooth ${
                     currentPage === i + 1
                       ? 'bg-primary text-primary-foreground'
@@ -1017,7 +1366,7 @@ export function EventsLog() {
               ))}
 
               <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                onClick={() => handleTablePageChange(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages || totalPages === 0}
                 className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
               >

@@ -3,11 +3,21 @@ export interface EventLogEntry {
   time: string;
   camera: string;
   plateNumber: string;
+  country?: string;
   owner: string;
   status: 'Чёрный' | 'Белый' | 'Нет в списках' | 'Подрядчик';
 }
 
 export const MOCK_EVENTS: EventLogEntry[] = [
+  {
+    date: '21.02.2026',
+    time: '12:41:23',
+    camera: 'Въезд-1',
+    plateNumber: 'H 740640',
+    country: 'RUS',
+    owner: 'ООО "ГрандСтрой"',
+    status: 'Подрядчик'
+  },
   {
     date: '14.02.2026',
     time: '12:41:23',

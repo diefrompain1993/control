@@ -1,4 +1,5 @@
-const INITIAL_RE = /[A-Za-zА-Яа-яЁё]/;
+const INITIAL_RE = /\p{L}/u;
+const INITIAL_GLOBAL_RE = /\p{L}/gu;
 
 const toTitleCase = (value: string) =>
   value
@@ -14,8 +15,11 @@ const extractInitial = (value?: string) => {
 };
 
 const extractInitialsFromTokens = (tokens: string[]) => {
-  const letters = tokens.flatMap((token) => token.match(INITIAL_RE) ?? []);
-  return letters.slice(0, 2).map((char) => `${char.toUpperCase()}.`).join('');
+  const letters = tokens.flatMap((token) => token.match(INITIAL_GLOBAL_RE) ?? []);
+  return letters
+    .slice(0, 2)
+    .map((char) => `${char.toUpperCase()}.`)
+    .join('');
 };
 
 export const getNameWithInitials = (fullName?: string | null, fallback = '—') => {

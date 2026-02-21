@@ -21,10 +21,11 @@ import {
   resolveRouteId,
   type RouteId
 } from '@/app/routesConfig';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 function AppShell() {
   const { user, isAuthenticated, isAuthReady, logout } = useAuth();
+  const mainScrollRef = useRef<HTMLElement | null>(null);
   const [currentPath, setCurrentPath] = useState(() => {
     const initial = window.location.pathname + window.location.search + window.location.hash;
     return initial || '/';
@@ -65,6 +66,10 @@ function AppShell() {
       navigate(getRoutePath(defaultRouteId), { replace: true });
     }
   }, [normalizedPath, defaultRouteId, isAuthenticated, isAuthReady, navigate]);
+
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeRouteId]);
 
   const handleNavigate = useCallback(
     (routeId: RouteId) => {
@@ -123,7 +128,10 @@ function AppShell() {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Header />
 
-          <main className="flex-1 overflow-y-scroll [scrollbar-gutter:stable] p-8">
+          <main
+            ref={mainScrollRef}
+            className="flex-1 overflow-y-scroll [scrollbar-gutter:stable] p-8"
+          >
             <RequireRole roles={ROUTE_CONFIG[activeRouteId].roles}>{renderPage()}</RequireRole>
           </main>
         </div>

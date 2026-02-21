@@ -1,5 +1,5 @@
 ﻿import { Plus, Search, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PencilLine, Trash2 } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '@/app/components/ui/page-header';
 import { FilterBar } from '@/app/components/ui/filter-bar';
 import { Input } from '@/app/components/ui/input';
@@ -13,6 +13,7 @@ import {
   formatPlateNumber,
   formatPlateNumberWithRegion,
   formatPlateWithCountryCode,
+  getPlateBaseForEdit,
   getPlateCountryCode,
   normalizePlateNumber
 } from '@/app/utils/plate';
@@ -58,6 +59,7 @@ import {
   DrawerTitle,
   DrawerTrigger
 } from '@/app/components/ui/drawer';
+import { usePaginatedPageScroll } from '@/app/hooks/use-paginated-page-scroll';
 
 const parseDateToTimestamp = (value: string) => {
   const [day, month, year] = value.split('.').map((part) => Number(part));
@@ -90,6 +92,13 @@ export function Contractors() {
   const [rowChipClosingIds, setRowChipClosingIds] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState('');
   const [dateSort, setDateSort] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const tableHostRef = useRef<HTMLDivElement | null>(null);
+  const { handlePageChange, resetPageScrollMemory } = usePaginatedPageScroll({
+    currentPage,
+    setCurrentPage,
+    hostRef: tableHostRef
+  });
   const [isLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -285,6 +294,23 @@ export function Contractors() {
   const hasSearchMatches = searchQuery.trim() !== '' && filteredData.length > 0;
   const canViewEntries = selectedRowIds.length > 0 || hasSearchMatches;
   const hasSelectedChips = selectedVehicles.length > 0;
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+  const displayedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return sortedData.slice(start, start + itemsPerPage);
+  }, [sortedData, currentPage]);
+
+  useEffect(() => {
+    resetPageScrollMemory();
+    setCurrentPage(1);
+  }, [searchQuery, dateFilter, dateSort, refreshKey, resetPageScrollMemory]);
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const resolveSearchParams = () => {
     const query = searchQuery.trim();
@@ -327,6 +353,8 @@ export function Contractors() {
     setSearchQuery('');
     setDateFilter('');
     setDateSort('desc');
+    resetPageScrollMemory();
+    setCurrentPage(1);
     setSelectedRowIds([]);
     setRowChipClosingIds([]);
   };
@@ -392,7 +420,7 @@ export function Contractors() {
     setEditingVehicle(vehicle);
     setForm({
       owner: vehicle.owner,
-      plateNumber: vehicle.plateNumber,
+      plateNumber: getPlateBaseForEdit(vehicle.plateNumber, vehicle.region),
       region: vehicle.region ?? '',
       country: vehicle.country ?? '',
       accessFrom: vehicle.accessFrom ?? '',
@@ -406,20 +434,23 @@ export function Contractors() {
 
   const handleSave = () => {
     const trimmedOwner = form.owner.trim();
+    const normalizedOwnerValue = trimmedOwner.replace(/\s+/g, ' ');
+    const existingOwnerNormalized = editingVehicle?.owner.trim().replace(/\s+/g, ' ');
     const ownerValue =
-      trimmedOwner.split(/\s+/).length >= 2 && !isOrganizationName(trimmedOwner)
-        ? getNameWithInitials(trimmedOwner, trimmedOwner)
-        : trimmedOwner;
-    const normalizedPlate = normalizePlateNumber(form.plateNumber);
+      editingVehicle && normalizedOwnerValue === existingOwnerNormalized
+        ? editingVehicle.owner
+        : normalizedOwnerValue;
     const trimmedRegion = form.region.trim();
     const trimmedCountry = form.country.trim();
     const regionValue = trimmedRegion;
     const countryValue = trimmedCountry;
+    const plateBaseValue = getPlateBaseForEdit(form.plateNumber.trim(), regionValue);
+    const normalizedPlate = normalizePlateNumber(plateBaseValue);
     const accessFromValue = form.accessFrom.trim();
     const accessToValue = form.accessTo.trim();
     const selectedCategory = form.category as StoredVehicle['category'];
     const isContractorCategory = selectedCategory === 'contractor';
-    const plateNumberValue = buildPlateNumber(form.plateNumber.trim(), regionValue, countryValue);
+    const plateNumberValue = buildPlateNumber(plateBaseValue, regionValue, countryValue);
     const formatValue = (value?: string) => (value ? value : '—');
     const nextErrors: typeof errors = {};
 
@@ -433,10 +464,6 @@ export function Contractors() {
 
     if (!trimmedRegion) {
       nextErrors.region = 'Введите регион.';
-    }
-
-    if (!trimmedCountry) {
-      nextErrors.country = 'Укажите страну.';
     }
 
     if (trimmedCountry && /\d/.test(trimmedCountry)) {
@@ -472,10 +499,7 @@ export function Contractors() {
       nextErrors.accessTo = 'Дата завершения должна быть не раньше даты начала.';
     }
 
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors);
-      return;
-    }
+    setErrors({});
 
     const notesValue = form.notes.trim() || undefined;
 
@@ -610,19 +634,24 @@ export function Contractors() {
         accessTo: isContractorCategory ? accessToValue || undefined : undefined,
         notes: notesValue
       });
+      const plateWithRegionAndCountry = `${formatPlateNumberWithRegion(
+        plateNumberValue,
+        regionValue,
+        countryValue
+      )} (${getPlateCountryCode(plateNumberValue, countryValue)})`;
 
       addAuditLogEntry({
         timestamp,
         user: creatorName,
         action: 'Добавлен автомобиль',
-        target: formatPlateWithCountryCode(plateNumberValue, countryValue),
-        details: `Номер: ${formatPlateWithCountryCode(plateNumberValue, countryValue)} · Список: ${categoryAuditLabels[selectedCategory]} · Владелец: ${ownerValue} · Регион: ${formatValue(
+        target: plateWithRegionAndCountry,
+        details: `Номер: ${plateWithRegionAndCountry} · Список: ${categoryAuditLabels[selectedCategory]} · Владелец: ${ownerValue} · Регион: ${formatValue(
           regionValue
         )} · Страна: ${formatValue(countryValue)}${
           isContractorCategory
             ? ` · Срок доступа: ${formatValue(accessFromValue)} - ${formatValue(accessToValue)}`
             : ''
-        }`
+        } · Примечание: ${formatValue(notesValue)}`
       });
     }
 
@@ -705,7 +734,7 @@ export function Contractors() {
                             setErrors((prev) => ({ ...prev, owner: undefined }));
                           }
                         }}
-                        placeholder="ООО «СМК»"
+                        placeholder="ООО В«СМКВ»"
                       />
                       {errors.owner && (
                         <p className="mt-1 text-xs text-red-600">{errors.owner}</p>
@@ -763,6 +792,15 @@ export function Contractors() {
                           window.setTimeout(() => setCountrySuggestionsOpen(false), 120);
                         }}
                         placeholder="Россия (RUS)"
+                        clearable
+                        clearButtonAriaLabel="Очистить страну"
+                        onClear={() => {
+                          setForm((prev) => ({ ...prev, country: '' }));
+                          if (errors.country) {
+                            setErrors((prev) => ({ ...prev, country: undefined }));
+                          }
+                          setCountrySuggestionsOpen(false);
+                        }}
                       />
                       {countrySuggestionsOpen &&
                         filteredCountries.length > 0 && (
@@ -865,7 +903,7 @@ export function Contractors() {
                         label="Примечание"
                         value={form.notes}
                         onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))}
-                        placeholder="Например, срок доступа"
+                        placeholder="При необходимости"
                       />
                     </div>
                   </div>
@@ -980,19 +1018,6 @@ export function Contractors() {
             />
           </div>
           <div className="flex items-end gap-2">
-            <Button type="submit" className="h-[36px] px-4">
-              Найти
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleResetFilters}
-              className="h-[36px] px-4"
-            >
-              Сбросить
-            </Button>
-          </div>
-          <div className="ml-auto flex items-end">
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-flex">
@@ -1013,6 +1038,14 @@ export function Contractors() {
                 </TooltipContent>
               )}
             </Tooltip>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleResetFilters}
+              className="h-[36px] px-4"
+            >
+              Сбросить
+            </Button>
           </div>
         </form>
         <div
@@ -1039,14 +1072,14 @@ export function Contractors() {
                 {canViewOwnerNames
                   ? `${formatPlateNumber(vehicle.plateNumber)} · ${getOwnerShortLabel(vehicle.owner)}`
                   : formatPlateNumber(vehicle.plateNumber)}
-                <span className="text-[14px] leading-none font-semibold">×</span>
+                <span className="text-[14px] leading-none font-semibold">&times;</span>
               </button>
             );
           })}
         </div>
       </FilterBar>
 
-      <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+      <div ref={tableHostRef} className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="px-8 py-6 border-b border-border flex items-center justify-between">
           <h2 className="text-[20px] font-bold text-foreground tracking-tight">Список автомобилей</h2>
           <span className="text-sm text-muted-foreground">Всего: {sortedData.length}</span>
@@ -1107,28 +1140,28 @@ export function Contractors() {
                       <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
                     </td>
                     {canViewOwnerNames && (
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-6">
                         <div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
                       </td>
                     )}
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-6">
                       <div className="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-6">
                       <div className="h-4 bg-gray-200 rounded animate-pulse w-16"></div>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-6">
                       <div className="h-4 bg-gray-200 rounded animate-pulse w-28"></div>
                     </td>
                     {canManage && (
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-6">
                         <div className="h-4 bg-gray-200 rounded animate-pulse w-16"></div>
                       </td>
                     )}
                   </tr>
                 ))
               ) : sortedData.length > 0 ? (
-                sortedData.map((vehicle) => {
+                displayedData.map((vehicle) => {
                   const isSelectedRow = selectedRowIds.includes(vehicle.id);
                   const accessState = getContractorAccessState(vehicle, new Date(), categoryVehicles);
 
@@ -1155,7 +1188,9 @@ export function Contractors() {
                     {canViewOwnerNames && (
                       <td className="py-4 px-6 text-center text-[14px] text-foreground/80">
                         <span className="inline-flex items-center justify-center">
-                          {vehicle.owner}
+                          {isOrganizationName(vehicle.owner)
+                            ? vehicle.owner
+                            : getNameWithInitials(vehicle.owner, vehicle.owner)}
                         </span>
                       </td>
                     )}
@@ -1189,10 +1224,10 @@ export function Contractors() {
                               event.stopPropagation();
                               openEditDialog(vehicle);
                             }}
-                            className="text-blue-400 transition-colors hover:text-blue-500"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-blue-500 transition-colors hover:bg-blue-50 hover:text-blue-600"
                             aria-label="Редактировать"
                           >
-                            <PencilLine className="w-4 h-4" />
+                            <PencilLine className="h-[18px] w-[18px]" />
                           </button>
                           <button
                             type="button"
@@ -1200,10 +1235,10 @@ export function Contractors() {
                               event.stopPropagation();
                               handleDeleteRequest(vehicle);
                             }}
-                            className="text-red-400 transition-colors hover:text-red-500"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-50 hover:text-red-600"
                             aria-label="Удалить"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="h-[18px] w-[18px]" />
                           </button>
                           
                         </div>
@@ -1228,23 +1263,35 @@ export function Contractors() {
 
         <div className="px-8 py-5 border-t border-border flex items-center justify-between bg-muted/20">
           <div className="text-sm font-medium text-muted-foreground">
-            Всего записей: {sortedData.length}
+            Показано {displayedData.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-{Math.min(currentPage * itemsPerPage, sortedData.length)} из {sortedData.length}
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              disabled
+              onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
               className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-4 h-4 text-foreground" strokeWidth={2} />
             </button>
 
-            <button className="px-3 py-1 rounded text-sm bg-primary text-primary-foreground">
-              1
-            </button>
+            {totalPages > 0 && [...Array(totalPages)].map((_, i) => (
+              <button
+                key={i}
+                onClick={() => handlePageChange(i + 1)}
+                className={`px-3 py-1 rounded text-sm transition-smooth ${
+                  currentPage === i + 1
+                    ? 'bg-primary text-primary-foreground'
+                    : 'border border-border hover:bg-muted/50'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
 
             <button
-              disabled
+              onClick={() => handlePageChange(Math.min(totalPages || 1, currentPage + 1))}
+              disabled={currentPage === totalPages || totalPages === 0}
               className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronRight className="w-4 h-4 text-foreground" strokeWidth={2} />

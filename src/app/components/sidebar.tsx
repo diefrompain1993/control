@@ -8,8 +8,6 @@ import {
   FileText,
   Home,
   LogOut,
-  Package,
-  Shield,
   Users
 } from 'lucide-react';
 import { useAuth } from '@/auth/authContext';
@@ -28,6 +26,22 @@ interface NavItemProps {
   onClick?: () => void;
 }
 
+interface SidebarImageIconProps {
+  src: string;
+  alt: string;
+}
+
+function SidebarImageIcon({ src, alt }: SidebarImageIconProps) {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="sidebar-image-icon h-[18px] w-[18px] object-contain transition-[filter,opacity] duration-200"
+      draggable={false}
+    />
+  );
+}
+
 function NavItem({ icon, label, isActive, isCollapsed, onClick }: NavItemProps) {
   return (
     <button
@@ -43,7 +57,11 @@ function NavItem({ icon, label, isActive, isCollapsed, onClick }: NavItemProps) 
       }`}
     >
       <span
-        className={`${isActive ? 'opacity-100' : 'opacity-70'} flex-shrink-0 transition-[opacity,transform] duration-200`}
+        className={`flex-shrink-0 transition-[opacity,transform] duration-200 ${
+          isActive
+            ? 'opacity-100 [&_.sidebar-image-icon]:brightness-0 [&_.sidebar-image-icon]:invert [&_.sidebar-image-icon]:opacity-100'
+            : 'opacity-70 [&_.sidebar-image-icon]:brightness-0 [&_.sidebar-image-icon]:saturate-0 [&_.sidebar-image-icon]:opacity-60 group-hover:[&_.sidebar-image-icon]:opacity-80'
+        }`}
       >
         {icon}
       </span>
@@ -94,6 +112,7 @@ export function Sidebar({ activePage, onNavigate, onLogout }: SidebarProps) {
   const roleLabel = user ? roleLabels[user.role] : 'Гость';
 
   const sidebarWidthClasses = isCollapsed ? 'w-[88px] min-w-[88px]' : 'w-[240px] min-w-[240px]';
+  const handleLogoClick = () => onNavigate('dashboard');
 
   return (
     <aside
@@ -130,7 +149,13 @@ export function Sidebar({ activePage, onNavigate, onLogout }: SidebarProps) {
             isCollapsed ? 'h-14 pt-2 mb-4' : 'h-[118px] pt-2 mb-0'
           }`}
         >
-          <div className="relative h-full w-full">
+          <button
+            type="button"
+            onClick={handleLogoClick}
+            className="relative h-full w-full cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            aria-label="Перейти на главную"
+            title="Главная"
+          >
             <div
               className={`absolute inset-0 flex items-center justify-center transition-[opacity,transform] duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,transform] ${
                 isCollapsed ? 'opacity-0 scale-90 pointer-events-none' : 'opacity-100 scale-100'
@@ -158,7 +183,7 @@ export function Sidebar({ activePage, onNavigate, onLogout }: SidebarProps) {
                 showImage
               />
             </div>
-          </div>
+          </button>
         </div>
 
         <NavItem
@@ -194,7 +219,7 @@ export function Sidebar({ activePage, onNavigate, onLogout }: SidebarProps) {
         />
 
         <NavItem
-          icon={<Shield className="w-[18px] h-[18px]" strokeWidth={2} />}
+          icon={<SidebarImageIcon src="/galka_icon.jpg" alt="Белый список" />}
           label="Белый список"
           isCollapsed={isCollapsed}
           isActive={activePage === 'white-list'}
@@ -202,7 +227,7 @@ export function Sidebar({ activePage, onNavigate, onLogout }: SidebarProps) {
         />
 
         <NavItem
-          icon={<Package className="w-[18px] h-[18px]" strokeWidth={2} />}
+          icon={<SidebarImageIcon src="/prod_icon.png" alt="Подрядчики" />}
           label="Подрядчики"
           isCollapsed={isCollapsed}
           isActive={activePage === 'contractors'}

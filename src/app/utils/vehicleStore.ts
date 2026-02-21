@@ -17,6 +17,7 @@ export interface StoredVehicle {
 const STORAGE_KEY = 'stored_vehicles';
 const OVERRIDES_KEY = 'vehicle_overrides';
 const DELETED_KEY = 'vehicle_deleted_ids';
+const MAX_STORED_VEHICLES = 1000;
 
 const readStoredVehicles = (): StoredVehicle[] => {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -31,7 +32,22 @@ const readStoredVehicles = (): StoredVehicle[] => {
 };
 
 const writeStoredVehicles = (vehicles: StoredVehicle[]) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
+  let nextVehicles = vehicles.slice(0, MAX_STORED_VEHICLES);
+  while (nextVehicles.length > 0) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextVehicles));
+      return;
+    } catch {
+      const nextLength = Math.floor(nextVehicles.length / 2);
+      if (nextLength <= 0) break;
+      nextVehicles = nextVehicles.slice(0, nextLength);
+    }
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+  } catch {
+    // Ignore storage errors to keep UI responsive.
+  }
 };
 
 const readOverrides = (): StoredVehicle[] => {

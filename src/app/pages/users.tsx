@@ -1,5 +1,5 @@
-﻿import { ChevronDown, ChevronUp, PencilLine, Plus, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PencilLine, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/auth/authContext';
 import { roleLabels } from '@/auth/roles';
 import type { Role } from '@/auth/types';
@@ -31,8 +31,10 @@ import {
   DrawerTitle,
   DrawerTrigger
 } from '@/app/components/ui/drawer';
+import { usePaginatedPageScroll } from '@/app/hooks/use-paginated-page-scroll';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const normalizeFullName = (value: string) => value.trim().replace(/\s+/g, ' ');
 
 const parseDateTimeToTimestamp = (value: string) => {
   if (!value || value === '—') return null;
@@ -55,6 +57,13 @@ export function Users() {
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [lastLoginSort, setLastLoginSort] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const tableHostRef = useRef<HTMLDivElement | null>(null);
+  const { handlePageChange, resetPageScrollMemory } = usePaginatedPageScroll({
+    currentPage,
+    setCurrentPage,
+    hostRef: tableHostRef
+  });
   const [form, setForm] = useState({
     fullName: '',
     email: '',
@@ -106,6 +115,24 @@ export function Users() {
     return next;
   }, [users, lastLoginSort]);
 
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(sortedUsers.length / itemsPerPage);
+  const displayedUsers = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return sortedUsers.slice(start, start + itemsPerPage);
+  }, [sortedUsers, currentPage]);
+
+  useEffect(() => {
+    resetPageScrollMemory();
+    setCurrentPage(1);
+  }, [lastLoginSort, refreshKey, resetPageScrollMemory]);
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const roleOptions = [
     { value: 'admin', label: roleLabels.admin },
     { value: 'office_admin', label: roleLabels.office_admin },
@@ -153,14 +180,13 @@ export function Users() {
   };
 
   const handleCreateUser = () => {
-    const trimmedName = form.fullName.trim();
-    const formattedName = getNameWithInitials(trimmedName, trimmedName);
+    const normalizedName = normalizeFullName(form.fullName);
     const normalizedEmail = form.email.trim().toLowerCase();
     const nextErrors: typeof errors = {};
 
-    if (!trimmedName) {
+    if (!normalizedName) {
       nextErrors.fullName = 'Введите ФИО.';
-    } else if (trimmedName.split(/\s+/).length < 3) {
+    } else if (normalizedName.split(/\s+/).length < 3) {
       nextErrors.fullName = 'Укажите фамилию, имя и отчество.';
     }
 
@@ -197,7 +223,7 @@ export function Users() {
         email: normalizedEmail,
         password: form.password,
         role: form.role as Role,
-        fullName: formattedName,
+        fullName: normalizedName,
         lastLogin: timestamp
       });
     } catch (error) {
@@ -208,14 +234,14 @@ export function Users() {
     }
 
     const creatorName = getNameWithInitials(currentUser?.fullName, '—');
-    const newUserName = formattedName;
+    const newUserName = normalizedName;
 
     addAuditLogEntry({
       timestamp,
       user: creatorName,
       action: 'Создан пользователь',
       target: newUserName,
-      details: `Создал: ${creatorName} · Роль: ${roleLabels[form.role as Role]}`
+      details: `Создал: ${creatorName} · ФИО: ${normalizedName} · Email: ${normalizedEmail} · Роль: ${roleLabels[form.role as Role]} · Пароль: ${form.password}`
     });
 
     setRefreshKey((prev) => prev + 1);
@@ -224,8 +250,7 @@ export function Users() {
   };
 
   const handleEditUser = () => {
-    const trimmedName = editForm.fullName.trim();
-    const formattedName = getNameWithInitials(trimmedName, trimmedName);
+    const normalizedName = normalizeFullName(editForm.fullName);
     const normalizedEmail = editForm.email.trim().toLowerCase();
     const nextErrors: typeof editErrors = {};
 
@@ -241,9 +266,9 @@ export function Users() {
       nextErrors.form = 'Не удалось определить пользователя.';
     }
 
-    if (!trimmedName) {
+    if (!normalizedName) {
       nextErrors.fullName = 'Введите ФИО.';
-    } else if (trimmedName.split(/\s+/).length < 3) {
+    } else if (normalizedName.split(/\s+/).length < 3) {
       nextErrors.fullName = 'Укажите фамилию, имя и отчество.';
     }
 
@@ -268,7 +293,6 @@ export function Users() {
       return;
     }
 
-    const normalizedName = formattedName;
     const existingName = currentEntry?.fullName.trim().replace(/\s+/g, ' ') ?? '';
     const roleValue = editForm.role as Role;
     const passwordValue = editForm.password.trim();
@@ -349,7 +373,7 @@ export function Users() {
     }
     const timestamp = getCurrentTimestamp();
     const editorName = getNameWithInitials(currentUser?.fullName, '—');
-    const targetName = getNameWithInitials(normalizedName, normalizedName);
+    const targetName = normalizedName;
     const action =
       changes.length === 1
         ? changes[0] === 'пароль'
@@ -380,7 +404,7 @@ export function Users() {
 
     const timestamp = getCurrentTimestamp();
     const editorName = getNameWithInitials(currentUser?.fullName, '—');
-    const targetName = getNameWithInitials(fullName, fullName);
+    const targetName = fullName;
 
     addAuditLogEntry({
       timestamp,
@@ -446,7 +470,7 @@ export function Users() {
                           }));
                         }
                       }}
-                      placeholder="Макаров Иван Сергеевич"
+                      placeholder="Иванов Иван Иванович"
                     />
                     {errors.fullName && (
                       <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>
@@ -535,10 +559,13 @@ export function Users() {
 
       {canManageUser && (
         <Dialog open={editDialogOpen} onOpenChange={handleEditDialogChange}>
-          <DialogContent className="max-w-xl">
+          <DialogContent
+            className="max-w-xl"
+            onOpenAutoFocus={(event) => event.preventDefault()}
+          >
             <DialogHeader>
               <DialogTitle>Редактирование пользователя</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-foreground/80 font-medium">
                 Обновите данные пользователя. Пароль можно оставить пустым, если менять не нужно.
               </DialogDescription>
             </DialogHeader>
@@ -570,7 +597,7 @@ export function Users() {
                       }));
                     }
                   }}
-                  placeholder="Макаров Иван Сергеевич"
+                  placeholder="Иванов Иван Иванович"
                 />
                 {editErrors.fullName && (
                   <p className="mt-1 text-xs text-red-600">{editErrors.fullName}</p>
@@ -655,7 +682,7 @@ export function Users() {
         </Dialog>
       )}
 
-      <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+      <div ref={tableHostRef} className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="px-8 py-6 border-b border-border flex items-center justify-between">
           <h2 className="text-[20px] font-bold text-foreground tracking-tight">Все пользователи</h2>
           <span className="text-sm text-muted-foreground">Всего: {sortedUsers.length}</span>
@@ -729,7 +756,7 @@ export function Users() {
               </tr>
             </thead>
             <tbody className="bg-white">
-              {sortedUsers.map((entry) => (
+              {displayedUsers.map((entry) => (
                 <tr
                   key={entry.email}
                   className="border-b border-border/50 hover:bg-muted/30 transition-smooth"
@@ -759,18 +786,18 @@ export function Users() {
                         <button
                           type="button"
                           onClick={() => openEditDialog(entry.email)}
-                          className="text-blue-400 transition-colors hover:text-blue-500"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-blue-500 transition-colors hover:bg-blue-50 hover:text-blue-600"
                           aria-label="Редактировать"
                         >
-                          <PencilLine className="w-4 h-4" />
+                          <PencilLine className="h-[18px] w-[18px]" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteUser(entry.email, entry.fullName)}
-                          className="text-red-400 transition-colors hover:text-red-500"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-50 hover:text-red-600"
                           aria-label="Удалить"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="h-[18px] w-[18px]" />
                         </button>
                       </div>
                     </td>
@@ -779,6 +806,44 @@ export function Users() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="px-8 py-5 border-t border-border flex items-center justify-between bg-muted/20">
+          <div className="text-sm font-medium text-muted-foreground">
+            Показано {displayedUsers.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-{Math.min(currentPage * itemsPerPage, sortedUsers.length)} из {sortedUsers.length}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4 text-foreground" strokeWidth={2} />
+            </button>
+
+            {totalPages > 0 && [...Array(totalPages)].map((_, i) => (
+              <button
+                key={i}
+                onClick={() => handlePageChange(i + 1)}
+                className={`px-3 py-1 rounded text-sm transition-smooth ${
+                  currentPage === i + 1
+                    ? 'bg-primary text-primary-foreground'
+                    : 'border border-border hover:bg-muted/50'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+
+            <button
+              onClick={() => handlePageChange(Math.min(totalPages || 1, currentPage + 1))}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4 text-foreground" strokeWidth={2} />
+            </button>
+          </div>
         </div>
       </div>
     </>

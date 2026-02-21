@@ -90,6 +90,18 @@ export const BASE_VEHICLES: Record<VehicleCategory, StoredVehicle[]> = {
       notes: 'Проектный подрядчик'
     },
     {
+      id: 'contractor-6',
+      category: 'contractor',
+      plateNumber: 'H 740640',
+      region: '',
+      country: 'RUS',
+      owner: 'ООО "ГрандСтрой"',
+      addedDate: '21.02.2026',
+      accessFrom: '21.02.2026',
+      accessTo: '21.05.2026',
+      notes: 'Последний въезд (демо)'
+    },
+    {
       id: 'contractor-4',
       category: 'contractor',
       plateNumber: 'Н123НН16',

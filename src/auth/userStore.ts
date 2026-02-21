@@ -6,20 +6,117 @@ const DELETED_USERS_KEY = 'auth_user_deleted';
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
+const MOJIBAKE_REPLACEMENTS: Record<string, string> = {
+  'РЃ': 'Ё',
+  'Рђ': 'А',
+  'Р‘': 'Б',
+  'Р’': 'В',
+  'Р“': 'Г',
+  'Р”': 'Д',
+  'Р•': 'Е',
+  'Р–': 'Ж',
+  'Р—': 'З',
+  'Р': 'И',
+  'Р™': 'Й',
+  'Рљ': 'К',
+  'Р›': 'Л',
+  'Рњ': 'М',
+  'Рќ': 'Н',
+  'Рћ': 'О',
+  'Рџ': 'П',
+  'Р ': 'Р',
+  'РЎ': 'С',
+  'Рў': 'Т',
+  'РЈ': 'У',
+  'Р¤': 'Ф',
+  'РҐ': 'Х',
+  'Р¦': 'Ц',
+  'Р§': 'Ч',
+  'РЁ': 'Ш',
+  'Р©': 'Щ',
+  'РЄ': 'Ъ',
+  'Р«': 'Ы',
+  'Р¬': 'Ь',
+  'Р­': 'Э',
+  'Р®': 'Ю',
+  'РЇ': 'Я',
+  'Р°': 'а',
+  'Р±': 'б',
+  'Р²': 'в',
+  'Рі': 'г',
+  'Рґ': 'д',
+  'Рµ': 'е',
+  'Р¶': 'ж',
+  'Р·': 'з',
+  'Рё': 'и',
+  'Р№': 'й',
+  'Рє': 'к',
+  'Р»': 'л',
+  'Рј': 'м',
+  'РЅ': 'н',
+  'Рѕ': 'о',
+  'Рї': 'п',
+  'С‘': 'ё',
+  'СЂ': 'р',
+  'СЃ': 'с',
+  'С‚': 'т',
+  'Сѓ': 'у',
+  'С„': 'ф',
+  'С…': 'х',
+  'С†': 'ц',
+  'С‡': 'ч',
+  'С€': 'ш',
+  'С‰': 'щ',
+  'СЉ': 'ъ',
+  'С‹': 'ы',
+  'СЊ': 'ь',
+  'СЌ': 'э',
+  'СЋ': 'ю',
+  'СЏ': 'я',
+  'В·': '·',
+  'вЂ”': '—',
+  'вЂ“': '–',
+  'вЂ¦': '…',
+  'в„–': '№',
+  'вЂќ': '”',
+  'вЂњ': '“',
+  'вЂ™': '’',
+  'вЂљ': '‚'
+};
+
+const MOJIBAKE_RE = new RegExp(
+  Object.keys(MOJIBAKE_REPLACEMENTS)
+    .sort((a, b) => b.length - a.length)
+    .join('|'),
+  'g'
+);
+
+const normalizeMojibakeText = (value: string) =>
+  value.replace(MOJIBAKE_RE, (match) => MOJIBAKE_REPLACEMENTS[match] ?? match);
+
+const normalizeUserText = (user: MockUser): MockUser => ({
+  ...user,
+  fullName: normalizeMojibakeText(user.fullName),
+  lastLogin: normalizeMojibakeText(user.lastLogin)
+});
+
 const readStoredUsers = (): MockUser[] => {
   const raw = localStorage.getItem(STORED_USERS_KEY);
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed as MockUser[];
+    return (parsed as MockUser[]).map(normalizeUserText);
   } catch {
     return [];
   }
 };
 
 const writeStoredUsers = (users: MockUser[]) => {
-  localStorage.setItem(STORED_USERS_KEY, JSON.stringify(users));
+  localStorage.setItem(
+    STORED_USERS_KEY,
+    JSON.stringify(users.map(normalizeUserText))
+  );
 };
 
 const readOverrides = (): MockUser[] => {
@@ -28,14 +125,17 @@ const readOverrides = (): MockUser[] => {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed as MockUser[];
+    return (parsed as MockUser[]).map(normalizeUserText);
   } catch {
     return [];
   }
 };
 
 const writeOverrides = (users: MockUser[]) => {
-  localStorage.setItem(USER_OVERRIDES_KEY, JSON.stringify(users));
+  localStorage.setItem(
+    USER_OVERRIDES_KEY,
+    JSON.stringify(users.map(normalizeUserText))
+  );
 };
 
 const readDeletedUsers = (): string[] => {
@@ -60,7 +160,7 @@ const applyOverrides = (users: MockUser[]) => {
   const overrideMap = new Map(overrides.map((user) => [user.email, user]));
   return users
     .filter((user) => !deleted.has(user.email))
-    .map((user) => overrideMap.get(user.email) ?? user);
+    .map((user) => normalizeUserText(overrideMap.get(user.email) ?? user));
 };
 
 const removeDeletedEmail = (email: string) => {
@@ -88,7 +188,7 @@ export const addStoredUser = (user: MockUser) => {
   removeDeletedEmail(normalizedEmail);
 
   const storedUsers = readStoredUsers();
-  const normalizedUser = { ...user, email: normalizedEmail };
+  const normalizedUser = normalizeUserText({ ...user, email: normalizedEmail });
   storedUsers.push(normalizedUser);
   writeStoredUsers(storedUsers);
   return normalizedUser;
@@ -100,7 +200,10 @@ export const updateUser = (email: string, updates: Partial<MockUser>) => {
   const storedIndex = storedUsers.findIndex((user) => user.email === normalizedEmail);
 
   if (storedIndex >= 0) {
-    storedUsers[storedIndex] = { ...storedUsers[storedIndex], ...updates };
+    storedUsers[storedIndex] = normalizeUserText({
+      ...storedUsers[storedIndex],
+      ...updates
+    });
     writeStoredUsers(storedUsers);
     return storedUsers[storedIndex];
   }
@@ -112,7 +215,7 @@ export const updateUser = (email: string, updates: Partial<MockUser>) => {
 
   const overrides = readOverrides();
   const overrideIndex = overrides.findIndex((user) => user.email === normalizedEmail);
-  const updatedUser = { ...baseUser, ...updates };
+  const updatedUser = normalizeUserText({ ...baseUser, ...updates });
 
   if (overrideIndex >= 0) {
     overrides[overrideIndex] = updatedUser;

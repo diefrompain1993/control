@@ -1,11 +1,18 @@
 import { Search, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '@/app/components/ui/page-header';
 import { FilterBar } from '@/app/components/ui/filter-bar';
 import { Input } from '@/app/components/ui/input';
 import { DatePickerInput } from '@/app/components/ui/date-picker-input';
 import { Select } from '@/app/components/ui/select';
 import { Button } from '@/app/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/app/components/ui/dialog';
 import { getStoredAuditEntries, type AuditEntry } from '@/app/utils/auditLog';
 import { formatDateInput, parseDateRange } from '@/app/utils/dateFilter';
 
@@ -43,13 +50,92 @@ const parseDateToTimestamp = (value: string) => {
   return new Date(year, month - 1, day).getTime();
 };
 
+const normalizeText = (value: string) => value.toLowerCase().replaceAll('ё', 'е').trim();
+
+const getAuditActionLabel = (entry: AuditEntry) => {
+  const action = entry.action.trim();
+  const actionNormalized = normalizeText(action);
+  const detailsNormalized = normalizeText(entry.details);
+
+  if (actionNormalized.includes('добавлен автомобиль')) return 'Добавление автомобиля';
+  if (actionNormalized.includes('удален автомобиль')) return 'Удаление автомобиля';
+  if (actionNormalized.includes('создан пользователь')) return 'Создание пользователя';
+  if (actionNormalized.includes('удален пользователь')) return 'Удаление пользователя';
+  if (actionNormalized.includes('изменен пароль')) return 'Изменение пароля пользователя';
+
+  const isChangeAction =
+    actionNormalized.startsWith('изменено') ||
+    actionNormalized.startsWith('изменен') ||
+    actionNormalized.startsWith('изменены');
+
+  if (isChangeAction) {
+    const userMarkers = ['фио:', 'роль:', 'email:', 'пароль:'];
+    const vehicleMarkers = [
+      'номер:',
+      'регион:',
+      'страна:',
+      'срок доступа',
+      'список:',
+      'наименование:'
+    ];
+
+    if (userMarkers.some((marker) => detailsNormalized.includes(marker))) {
+      return 'Изменение данных пользователя';
+    }
+    if (vehicleMarkers.some((marker) => detailsNormalized.includes(marker))) {
+      return 'Изменение данных автомобиля';
+    }
+    return 'Изменение данных';
+  }
+
+  return action;
+};
+
+const getDetailsParts = (details: string) =>
+  details
+    .split(/\s*(?:·|В·)\s*/g)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
 export function AuditLog() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [dateSort, setDateSort] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedDetailsEntry, setSelectedDetailsEntry] = useState<AuditEntry | null>(null);
+  const tableHostRef = useRef<HTMLDivElement | null>(null);
+  const pageScrollByPageRef = useRef<Record<number, { top: number; stickBottom: boolean }>>({});
   const itemsPerPage = 10;
+
+  const getMainScrollContainer = useCallback(() => {
+    const host = tableHostRef.current;
+    if (!host) return null;
+    return host.closest('main') as HTMLElement | null;
+  }, []);
+
+  const rememberCurrentPageScroll = useCallback(
+    (page: number) => {
+      const container = getMainScrollContainer();
+      if (!container) return;
+      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      const top = container.scrollTop;
+      pageScrollByPageRef.current[page] = {
+        top,
+        stickBottom: maxScrollTop - top <= 8
+      };
+    },
+    [getMainScrollContainer]
+  );
+
+  const handleTablePageChange = useCallback(
+    (nextPage: number) => {
+      if (nextPage === currentPage) return;
+      rememberCurrentPageScroll(currentPage);
+      setCurrentPage(nextPage);
+    },
+    [currentPage, rememberCurrentPageScroll]
+  );
 
   const allEntries = useMemo(() => {
     const stored = getStoredAuditEntries();
@@ -86,7 +172,7 @@ export function AuditLog() {
         entry.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
         entry.target.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const actionLower = entry.action.toLowerCase();
+      const actionLower = normalizeText(getAuditActionLabel(entry));
       const matchesAction =
         actionFilter === '' ||
         (actionFilter === 'add' &&
@@ -111,8 +197,33 @@ export function AuditLog() {
   }, [filteredData, dateSort]);
 
   useEffect(() => {
+    pageScrollByPageRef.current = {};
     setCurrentPage(1);
   }, [searchQuery, actionFilter, dateFilter, dateSort]);
+
+  useEffect(() => {
+    const container = getMainScrollContainer();
+    const saved = pageScrollByPageRef.current[currentPage];
+    if (!container || !saved) return;
+
+    let rafA = 0;
+    let rafB = 0;
+    const restore = () => {
+      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      const targetTop = saved.stickBottom ? maxScrollTop : Math.min(saved.top, maxScrollTop);
+      container.scrollTo({ top: targetTop, behavior: 'auto' });
+    };
+
+    rafA = window.requestAnimationFrame(() => {
+      restore();
+      rafB = window.requestAnimationFrame(restore);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafA);
+      window.cancelAnimationFrame(rafB);
+    };
+  }, [currentPage, getMainScrollContainer]);
 
   const pageData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -131,6 +242,7 @@ export function AuditLog() {
     setActionFilter('');
     setDateFilter('');
     setDateSort('desc');
+    pageScrollByPageRef.current = {};
     setCurrentPage(1);
   };
 
@@ -196,7 +308,7 @@ export function AuditLog() {
         </form>
       </FilterBar>
 
-      <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+      <div ref={tableHostRef} className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="px-8 py-6 border-b border-border flex items-center justify-between">
           <h2 className="text-[20px] font-bold text-foreground tracking-tight">История действий</h2>
           <span className="text-sm text-muted-foreground">Всего: {sortedData.length}</span>
@@ -204,6 +316,13 @@ export function AuditLog() {
 
         <div className="overflow-x-auto">
           <table className="w-full table-fixed">
+            <colgroup>
+              <col className="w-[220px]" />
+              <col className="w-[220px]" />
+              <col className="w-[220px]" />
+              <col className="w-[200px]" />
+              <col className="w-[300px]" />
+            </colgroup>
             <thead>
               <tr className="bg-muted/20 border-b border-border">
                 <th className="text-center py-4 px-4 text-[12px] font-bold uppercase tracking-wider">
@@ -236,28 +355,37 @@ export function AuditLog() {
             </thead>
             <tbody className="bg-white">
               {pageData.length > 0 ? (
-                pageData.map((entry, index) => (
-                  <tr
-                    key={index}
-                    className="border-b border-border/50 hover:bg-muted/30 transition-smooth"
-                  >
-                    <td className="py-4 px-4 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
-                      {entry.timestamp}
-                    </td>
-                    <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground">
-                      {entry.user}
-                    </td>
-                    <td className="py-4 px-4 text-center text-[14px] text-foreground/80">
-                      {entry.action}
-                    </td>
-                    <td className="py-4 px-4 text-center text-[14px] font-medium text-foreground">
-                      {entry.target}
-                    </td>
-                    <td className="py-4 px-4 text-center text-[14px] text-foreground/70">
-                      {entry.details}
-                    </td>
-                  </tr>
-                ))
+                pageData.map((entry, index) => {
+                  const actionLabel = getAuditActionLabel(entry);
+                  return (
+                    <tr
+                      key={index}
+                      className="h-14 border-b border-border/50 hover:bg-muted/30 transition-smooth"
+                    >
+                      <td className="h-14 px-4 align-middle text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
+                        <span className="block truncate">{entry.timestamp}</span>
+                      </td>
+                      <td className="h-14 px-4 align-middle text-center text-[14px] font-medium text-foreground">
+                        <span className="block truncate">{entry.user}</span>
+                      </td>
+                      <td className="h-14 px-4 align-middle text-center text-[14px] text-foreground/80">
+                        <span className="block truncate">{actionLabel}</span>
+                      </td>
+                      <td className="h-14 px-4 align-middle text-center text-[14px] font-medium text-foreground">
+                        <span className="block truncate">{entry.target}</span>
+                      </td>
+                      <td className="h-14 px-4 align-middle text-center text-[14px] text-foreground/70">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDetailsEntry(entry)}
+                          className="text-[13px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded-sm px-1"
+                        >
+                          Посмотреть детали
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-muted-foreground">
@@ -276,7 +404,7 @@ export function AuditLog() {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              onClick={() => handleTablePageChange(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
               className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -287,7 +415,7 @@ export function AuditLog() {
               [...Array(totalPages)].map((_, i) => (
                 <button
                   key={i}
-                  onClick={() => setCurrentPage(i + 1)}
+                  onClick={() => handleTablePageChange(i + 1)}
                   className={`px-3 py-1 rounded text-sm transition-smooth ${
                     currentPage === i + 1
                       ? 'bg-primary text-primary-foreground'
@@ -299,7 +427,7 @@ export function AuditLog() {
               ))}
 
             <button
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              onClick={() => handleTablePageChange(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages || totalPages === 0}
               className="p-2 border border-border rounded-lg hover:bg-muted/50 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -308,9 +436,54 @@ export function AuditLog() {
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={selectedDetailsEntry !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDetailsEntry(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Детали действия</DialogTitle>
+            <DialogDescription>
+              Полная информация по выбранной записи журнала.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedDetailsEntry && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-[160px_1fr] gap-x-3 gap-y-2">
+                <span className="text-muted-foreground">Дата и время</span>
+                <span className="font-medium text-foreground">{selectedDetailsEntry.timestamp}</span>
+                <span className="text-muted-foreground">Пользователь</span>
+                <span className="font-medium text-foreground">{selectedDetailsEntry.user}</span>
+                <span className="text-muted-foreground">Действие</span>
+                <span className="font-medium text-foreground">{getAuditActionLabel(selectedDetailsEntry)}</span>
+                <span className="text-muted-foreground">Объект</span>
+                <span className="font-medium text-foreground">{selectedDetailsEntry.target}</span>
+              </div>
+              <div className="rounded-md border border-border bg-muted/20 p-3 text-foreground/90">
+                {getDetailsParts(selectedDetailsEntry.details).length > 1 ? (
+                  <ul className="space-y-1.5">
+                    {getDetailsParts(selectedDetailsEntry.details).map((part, index) => (
+                      <li key={index} className="break-words leading-relaxed">
+                        {part}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="whitespace-pre-wrap break-words">{selectedDetailsEntry.details}</p>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
+
+
 
 
 

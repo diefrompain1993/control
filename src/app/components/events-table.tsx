@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+﻿import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { useMemo, useState } from 'react';
 import { formatPlateNumber, getPlateCountryCode } from '@/app/utils/plate';
@@ -9,6 +9,7 @@ interface Event {
   time: string;
   camera: string;
   plateNumber: string;
+  country?: string;
   owner: string;
   status: 'Чёрный' | 'Белый' | 'Нет в списках' | 'Подрядчик';
 }
@@ -18,9 +19,10 @@ const events: Event[] = [
     id: '00001',
     time: '12:41:23',
     camera: 'Въезд-1',
-    plateNumber: 'А123ВС77',
-    owner: 'Иванов И.И.',
-    status: 'Чёрный'
+    plateNumber: 'H 740640',
+    country: 'RUS',
+    owner: 'ООО "ГрандСтрой"',
+    status: 'Подрядчик'
   },
   {
     id: '00002',
@@ -105,11 +107,14 @@ const parseTimeToSeconds = (value: string) => {
 
 interface EventsTableProps {
   onViewAll?: () => void;
+  className?: string;
 }
 
-export function EventsTable({ onViewAll }: EventsTableProps) {
+export function EventsTable({ onViewAll, className }: EventsTableProps) {
   const { user } = useAuth();
   const canViewOwnerNames = user?.role !== 'guard';
+  const isGuard = user?.role === 'guard';
+  const showListColumn = true;
   const [timeSort, setTimeSort] = useState<'asc' | 'desc'>('desc');
 
   const sortedEvents = useMemo(() => {
@@ -132,13 +137,23 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+    <div
+      className={`bg-white rounded-xl border border-border shadow-sm overflow-hidden flex flex-col ${className ?? ''}`}
+    >
       <div className="px-8 py-6 border-b border-border">
         <h2 className="text-[20px] font-bold text-foreground tracking-tight">Последние события</h2>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="flex-1 overflow-x-auto">
         <table className="w-full table-fixed">
+          {isGuard && (
+            <colgroup>
+              <col style={{ width: '25%' }} />
+              <col style={{ width: '25%' }} />
+              <col style={{ width: '25%' }} />
+              <col style={{ width: '25%' }} />
+            </colgroup>
+          )}
           <thead>
             <tr className="bg-muted/20 border-b border-border">
               <th className="text-center py-4 px-4 text-[12px] font-bold uppercase tracking-wider">
@@ -169,16 +184,18 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
                   Владелец
                 </th>
               )}
-              <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
-                Список
-              </th>
+              {showListColumn && (
+                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                  Список
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="bg-white">
             {sortedEvents.map((event) => {
               const isUnrecognized = event.status === 'Нет в списках';
               const ownerLabel = isUnrecognized ? 'Неизвестно' : event.owner;
-              const countryCode = getPlateCountryCode(event.plateNumber);
+              const countryCode = getPlateCountryCode(event.plateNumber, event.country);
               const formattedPlate = formatPlateNumber(event.plateNumber);
 
               return (
@@ -232,15 +249,19 @@ export function EventsTable({ onViewAll }: EventsTableProps) {
                       {ownerLabel}
                     </td>
                   )}
-                  <td className="py-4 px-4 text-center">
-                    <span
-                      className={`inline-flex min-w-[140px] items-center justify-center px-3 py-1 rounded-full text-[13px] font-medium ${getStatusStyles(
-                        event.status
-                      )}`}
-                    >
-                      {event.status}
-                    </span>
-                  </td>
+                  {showListColumn && (
+                    <td className="py-4 px-4 text-center">
+                      <span
+                        className={`inline-flex items-center justify-center rounded-full font-medium ${
+                          isGuard ? 'min-w-[112px] px-2.5 py-1 text-[12px]' : 'min-w-[140px] px-3 py-1 text-[13px]'
+                        } ${getStatusStyles(
+                          event.status
+                        )}`}
+                      >
+                        {event.status}
+                      </span>
+                    </td>
+                  )}
                 </tr>
               );
             })}
