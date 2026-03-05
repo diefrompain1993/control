@@ -106,6 +106,7 @@ export function Sidebar({ activePage, onNavigate, onLogout }: SidebarProps) {
 
   const showExport = user?.role === 'office_admin';
   const showAdminPages = user?.role === 'office_admin';
+  const isGuard = user?.role === 'guard';
   const showMiscSection = showAdminPages || showExport;
 
   const displayName = getNameWithInitials(user?.fullName, user?.email ?? '—');
@@ -202,6 +203,8 @@ export function Sidebar({ activePage, onNavigate, onLogout }: SidebarProps) {
           onClick={() => onNavigate('events')}
         />
 
+        {!isGuard && (
+          <>
         {!isCollapsed && (
           <div className="px-2 pt-4 pb-2">
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -241,6 +244,8 @@ export function Sidebar({ activePage, onNavigate, onLogout }: SidebarProps) {
           isActive={activePage === 'black-list'}
           onClick={() => onNavigate('black-list')}
         />
+          </>
+        )}
 
         {showMiscSection && (
           <>

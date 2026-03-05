@@ -315,13 +315,13 @@ export function QuickSearch({ className }: QuickSearchProps) {
 
       <div className="flex flex-1 flex-col min-h-0">
         <div className="mb-3 flex flex-col items-start">
-          <label className="block text-sm font-medium text-muted-foreground mb-1.5 pl-[2px]">
+          <label className="block text-sm font-medium text-muted-foreground mb-1.5 pl-[2px] [@media(max-width:1279px)]:text-[15px]">
             Введите номер:
           </label>
           <div className="flex w-full max-w-[520px] gap-3">
             <div className="relative flex-1">
               <Search
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 w-[16px] h-[16px] text-muted-foreground"
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 w-[16px] h-[16px] text-muted-foreground [@media(max-width:1279px)]:w-[18px] [@media(max-width:1279px)]:h-[18px]"
                 strokeWidth={2}
               />
               <input
@@ -342,14 +342,14 @@ export function QuickSearch({ className }: QuickSearchProps) {
                 }}
                 onKeyDown={handleKeyDown}
                 autoComplete="off"
-                className="w-full pl-11 pr-4 py-3 bg-muted/40 rounded-xl border border-border focus:outline-none focus:border-primary/40 focus:bg-white focus:ring-2 focus:ring-primary/10 transition-smooth text-sm text-foreground placeholder:text-muted-foreground"
+                className="w-full pl-11 pr-4 py-3 bg-muted/40 rounded-xl border border-border focus:outline-none focus:border-primary/40 focus:bg-white focus:ring-2 focus:ring-primary/10 transition-smooth text-sm text-foreground placeholder:text-muted-foreground [@media(max-width:1279px)]:h-11 [@media(max-width:1279px)]:py-0 [@media(max-width:1279px)]:pl-12 [@media(max-width:1279px)]:text-[15px]"
                 placeholder="А123ВС"
               />
             </div>
             <button
               type="button"
               onClick={handleSearch}
-              className="px-8 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-smooth shadow-md hover:shadow-lg font-semibold"
+              className="px-8 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-smooth shadow-md hover:shadow-lg font-semibold [@media(max-width:1279px)]:h-11 [@media(max-width:1279px)]:py-0 [@media(max-width:1279px)]:text-[15px]"
             >
               Найти
             </button>
@@ -358,7 +358,7 @@ export function QuickSearch({ className }: QuickSearchProps) {
 
         {hasFoundResult && resultItems.length > 0 && (
           <div className="border-t border-border pt-3 flex flex-col flex-1 min-h-0">
-            <div className="flex flex-col gap-2 text-sm text-foreground/70 min-h-0">
+            <div className="flex flex-col gap-2 text-sm text-foreground/70 min-h-0 [@media(max-width:1279px)]:text-[15px]">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span>Найдено событий:</span>
@@ -368,13 +368,13 @@ export function QuickSearch({ className }: QuickSearchProps) {
                   <span className="text-[11px] text-muted-foreground">Прокрутите список</span>
                 )}
               </div>
-              <div className="h-[96px] rounded-lg border border-border/80 bg-muted/20 overflow-hidden">
-                <div className="grid grid-cols-[minmax(0,1fr)_124px] items-center gap-2.5 border-b border-border/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="h-[96px] rounded-lg border border-border/80 bg-muted/20 overflow-hidden [@media(max-width:1279px)]:h-[108px]">
+                <div className="grid grid-cols-[minmax(0,1fr)_124px] items-center gap-2.5 border-b border-border/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground [@media(max-width:1279px)]:grid-cols-[minmax(0,1fr)_132px] [@media(max-width:1279px)]:gap-3 [@media(max-width:1279px)]:py-2 [@media(max-width:1279px)]:text-[11px]">
                   <span>Номер</span>
                   <span className="text-center">Список</span>
                 </div>
                 <div
-                  className="h-[64px] overflow-y-auto overscroll-contain px-1 py-1"
+                  className="h-[64px] overflow-y-auto overscroll-contain px-1 py-1 [@media(max-width:1279px)]:h-[72px] [@media(max-width:1279px)]:px-1.5 [@media(max-width:1279px)]:py-1.5"
                   onWheel={(event) => {
                     const container = event.currentTarget;
                     if (container.scrollHeight <= container.clientHeight) return;
@@ -392,17 +392,17 @@ export function QuickSearch({ className }: QuickSearchProps) {
                   {resultItems.map((item) => (
                     <div
                       key={item.key}
-                      className="grid grid-cols-[minmax(0,1fr)_124px] items-center gap-2.5 rounded-md px-2 py-1 hover:bg-white/70"
+                      className="grid grid-cols-[minmax(0,1fr)_124px] items-center gap-2.5 rounded-md px-2 py-1 hover:bg-white/70 [@media(max-width:1279px)]:grid-cols-[minmax(0,1fr)_132px] [@media(max-width:1279px)]:gap-3 [@media(max-width:1279px)]:px-2.5 [@media(max-width:1279px)]:py-1.5"
                     >
                       <span className="inline-flex min-w-0 items-center gap-2 text-foreground plate-text">
                         <span className="truncate">{formatPlateNumber(item.plateNumber)}</span>
-                        <span className="shrink-0 text-[11px] text-foreground/70 font-semibold">
+                        <span className="shrink-0 text-[11px] text-foreground/70 font-semibold [@media(max-width:1279px)]:text-xs">
                           ({getPlateCountryCode(item.plateNumber, item.country)})
                         </span>
                       </span>
                       <span
                         className={
-                          "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4 " +
+                          "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4 [@media(max-width:1279px)]:px-2.5 [@media(max-width:1279px)]:py-1 [@media(max-width:1279px)]:text-xs " +
                           (listBadgeByTextColor[item.listColor] ?? "border-border bg-white text-foreground/80")
                         }
                       >
@@ -421,8 +421,8 @@ export function QuickSearch({ className }: QuickSearchProps) {
                 disabled={!canOpenNote}
                 className={
                   canOpenNote
-                    ? "flex items-center gap-1.5 text-sm transition-smooth text-primary hover:text-primary/80"
-                    : "flex items-center gap-1.5 text-sm transition-smooth text-muted-foreground/60 cursor-not-allowed"
+                    ? "flex items-center gap-1.5 text-sm transition-smooth text-primary hover:text-primary/80 [@media(max-width:1279px)]:text-[15px]"
+                    : "flex items-center gap-1.5 text-sm transition-smooth text-muted-foreground/60 cursor-not-allowed [@media(max-width:1279px)]:text-[15px]"
                 }
               >
                 <MessageSquare className="w-4 h-4" strokeWidth={2} />
@@ -434,7 +434,7 @@ export function QuickSearch({ className }: QuickSearchProps) {
                 variant="secondary"
                 onClick={handleOpenCard}
                 disabled={!hasFoundResult}
-                className="h-8 px-3 text-sm font-semibold inline-flex items-center gap-1.5"
+                className="h-8 px-3 text-sm font-semibold inline-flex items-center gap-1.5 [@media(max-width:1279px)]:h-9 [@media(max-width:1279px)]:px-4 [@media(max-width:1279px)]:text-[15px]"
               >
                 Посмотреть въезды
                 <ArrowRight className="w-4 h-4" />

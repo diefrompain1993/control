@@ -148,12 +148,21 @@ export function EventsTable({ onViewAll, className }: EventsTableProps) {
         <table
           className={
             canViewOwnerNames
-              ? 'w-full min-w-[980px] table-auto 2xl:min-w-full 2xl:table-fixed'
-              : 'w-full min-w-[820px] table-auto 2xl:min-w-full 2xl:table-fixed'
+              ? 'w-full min-w-[940px] table-auto xl:min-w-full xl:table-fixed'
+              : 'w-full min-w-[780px] table-auto xl:min-w-full xl:table-fixed'
           }
         >
+          {canViewOwnerNames && (
+            <colgroup className="hidden xl:table-column-group">
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '26%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '20%' }} />
+            </colgroup>
+          )}
           {isGuard && (
-            <colgroup>
+            <colgroup className="hidden xl:table-column-group">
               <col style={{ width: '25%' }} />
               <col style={{ width: '25%' }} />
               <col style={{ width: '25%' }} />
@@ -162,7 +171,7 @@ export function EventsTable({ onViewAll, className }: EventsTableProps) {
           )}
           <thead>
             <tr className="bg-muted/20 border-b border-border">
-              <th className="text-center whitespace-nowrap py-4 px-2 text-[12px] font-bold uppercase tracking-wider md:px-3 xl:px-4">
+              <th className="text-center whitespace-nowrap py-4 px-2 text-[12px] font-bold uppercase tracking-wider md:px-2 xl:px-4">
                 <button
                   type="button"
                   onClick={() => setTimeSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
@@ -179,19 +188,19 @@ export function EventsTable({ onViewAll, className }: EventsTableProps) {
                   </span>
                 </button>
               </th>
-              <th className="text-center whitespace-nowrap py-4 px-2 text-[12px] font-bold text-foreground/70 uppercase tracking-wider md:px-3 xl:px-4">
+              <th className="text-center whitespace-nowrap py-4 px-2 text-[12px] font-bold text-foreground/70 uppercase tracking-wider md:px-2 xl:px-4">
                 Камера
               </th>
-              <th className="text-center whitespace-nowrap py-4 px-2 text-[12px] font-bold text-foreground/70 uppercase tracking-wider md:px-3 xl:px-4">
+              <th className="text-center whitespace-nowrap py-4 px-2 text-[12px] font-bold text-foreground/70 uppercase tracking-wider md:px-2 xl:px-4">
                 Номер
               </th>
               {canViewOwnerNames && (
-                <th className="text-center whitespace-nowrap py-4 px-2 text-[12px] font-bold text-foreground/70 uppercase tracking-wider md:px-3 xl:px-4">
+                <th className="text-center whitespace-nowrap py-4 px-2 text-[12px] font-bold text-foreground/70 uppercase tracking-wider md:px-2 xl:px-4">
                   Владелец
                 </th>
               )}
               {showListColumn && (
-                <th className="text-center whitespace-nowrap py-4 px-2 text-[12px] font-bold text-foreground/70 uppercase tracking-wider md:px-3 xl:px-4">
+                <th className="text-center whitespace-nowrap py-4 px-2 text-[12px] font-bold text-foreground/70 uppercase tracking-wider md:px-2 xl:px-4">
                   Список
                 </th>
               )}
@@ -209,13 +218,13 @@ export function EventsTable({ onViewAll, className }: EventsTableProps) {
                   key={event.id}
                   className="border-b border-border/50 hover:bg-muted/30 transition-smooth group"
                 >
-                  <td className="py-4 px-2 text-center whitespace-nowrap text-[14px] font-medium text-foreground/80 font-mono tabular-nums transition-colors hover:text-foreground md:px-3 xl:px-4">
+                  <td className="py-4 px-2 text-center whitespace-nowrap text-[14px] font-medium text-foreground/80 font-mono tabular-nums transition-colors hover:text-foreground md:px-2 xl:px-4">
                     {event.time}
                   </td>
-                  <td className="py-4 px-2 text-center whitespace-nowrap text-[14px] font-medium text-foreground/80 md:px-3 xl:px-4">
+                  <td className="py-4 px-2 text-center whitespace-nowrap text-[14px] font-medium text-foreground/80 md:px-2 xl:px-4">
                     {event.camera}
                   </td>
-                  <td className="py-4 px-2 text-center text-foreground plate-text md:px-3 xl:px-4">
+                  <td className="py-4 px-2 text-center text-foreground plate-text md:px-2 xl:px-4">
                     <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
                       <span aria-hidden="true" />
                       <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
@@ -251,17 +260,17 @@ export function EventsTable({ onViewAll, className }: EventsTableProps) {
                     </div>
                   </td>
                   {canViewOwnerNames && (
-                    <td className="py-4 px-2 text-center whitespace-nowrap 2xl:whitespace-normal text-[14px] font-medium text-foreground/80 md:px-3 xl:px-4">
+                    <td className="py-4 px-2 text-center whitespace-nowrap xl:whitespace-normal text-[14px] font-medium text-foreground/80 md:px-2 xl:px-4">
                       {ownerLabel}
                     </td>
                   )}
                   {showListColumn && (
-                    <td className="py-4 px-2 text-center md:px-3 xl:px-4">
+                    <td className="py-4 px-2 text-center md:px-2 xl:px-4">
                       <span
-                        className={`inline-flex items-center justify-center rounded-full font-medium ${
+                        className={`mx-auto flex w-full items-center justify-center rounded-full font-medium ${
                           isGuard
-                            ? 'min-w-[112px] whitespace-nowrap px-2.5 py-1 text-[12px]'
-                            : 'min-w-[140px] whitespace-nowrap px-3 py-1 text-[13px]'
+                            ? 'max-w-[112px] whitespace-nowrap px-2 py-1 text-[12px]'
+                            : 'max-w-[138px] whitespace-nowrap px-2.5 py-1 text-[13px]'
                         } ${getStatusStyles(
                           event.status
                         )}`}
