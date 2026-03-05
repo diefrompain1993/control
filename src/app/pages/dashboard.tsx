@@ -12,6 +12,7 @@ interface DashboardProps {
 
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { user } = useAuth();
+  const isGuard = user?.role === 'guard';
   const canViewOwnerNames = user?.role !== 'guard';
   const isOfficeAdmin = user?.role === 'office_admin';
   const whiteList = 24;
@@ -85,11 +86,19 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       <div className={dashboardGridClass}>
         <div className={leftColumnClass}>
           {showLastEntry && (
-            <div className="w-full bg-white rounded-xl border border-border shadow-sm px-8 pt-6 pb-6 flex flex-col gap-3">
+            <div
+              className={`w-full bg-white rounded-xl border border-border shadow-sm flex flex-col ${
+                isGuard ? 'px-5 pt-5 pb-5 gap-2.5 md:px-6 xl:px-8 xl:pt-6 xl:pb-6 xl:gap-3' : 'px-8 pt-6 pb-6 gap-3'
+              }`}
+            >
               <h2 className="text-[20px] font-bold text-foreground tracking-tight">
                 Последний въезд
               </h2>
-              <div className="flex-1 min-h-0 rounded-xl overflow-hidden border border-border">
+              <div
+                className={`rounded-xl overflow-hidden border border-border ${
+                  isGuard ? 'h-[230px] sm:h-[270px] md:h-[320px] xl:flex-1 xl:min-h-0 xl:h-auto' : 'flex-1 min-h-0'
+                }`}
+              >
                 <img
                   src="/car_number.jpg"
                   alt="Последний въезд"

@@ -141,6 +141,8 @@ const pluralizeEntries = (value: number) => {
 export function EventsLog() {
   const { user } = useAuth();
   const isGuard = user?.role === 'guard';
+  const isAdmin = user?.role === 'admin';
+  const isGuardOrAdmin = isGuard || isAdmin;
   const isOfficeAdmin = user?.role === 'office_admin';
   const canViewOwnerNames = user?.role !== 'guard';
   const canToggleContractorRows = user?.role !== 'guard';
@@ -718,6 +720,12 @@ export function EventsLog() {
   const hasDisplayedEvents = displayedEvents.length > 0;
   const eventsTableColSpan =
     2 + (showCameraColumn ? 1 : 0) + (canViewOwnerNames ? 1 : 0) + (showStatusColumn ? 1 : 0);
+  const compactEventsSecondaryColumns = 1 + (canViewOwnerNames ? 1 : 0) + (showStatusColumn ? 1 : 0);
+  const compactEventsPrimaryWidth = isGuardOrAdmin ? (isCompactTableLayout ? 35 : 36) : 0;
+  const compactEventsSecondaryWidth =
+    isGuardOrAdmin && compactEventsSecondaryColumns > 0
+      ? Number(((100 - compactEventsPrimaryWidth) / compactEventsSecondaryColumns).toFixed(2))
+      : 0;
   const tableFillerRowCount =
     hasDisplayedEvents ? Math.max(0, itemsPerPage - displayedEvents.length) : 0;
 
@@ -1091,17 +1099,20 @@ export function EventsLog() {
                 hasDisplayedEvents
                   ? isCompactTableLayout
                     ? 'w-full table-fixed'
-                    : 'w-full min-w-[980px] table-fixed xl:min-w-full'
+                    : isGuardOrAdmin
+                      ? 'w-full min-w-[620px] table-fixed xl:min-w-full'
+                      : 'w-full min-w-[980px] table-fixed xl:min-w-full'
                   : 'w-full table-auto'
               }
             >
               {hasDisplayedEvents && (
                 <colgroup>
-                  {isGuard ? (
+                  {isGuardOrAdmin ? (
                     <>
-                      <col style={{ width: showStatusColumn ? '34%' : '50%' }} />
-                      <col style={{ width: showStatusColumn ? '33%' : '50%' }} />
-                      {showStatusColumn && <col style={{ width: '33%' }} />}
+                      <col style={{ width: `${compactEventsPrimaryWidth}%` }} />
+                      <col style={{ width: `${compactEventsSecondaryWidth}%` }} />
+                      {canViewOwnerNames && <col style={{ width: `${compactEventsSecondaryWidth}%` }} />}
+                      {showStatusColumn && <col style={{ width: `${compactEventsSecondaryWidth}%` }} />}
                     </>
                   ) : (
                     <>
@@ -1118,8 +1129,8 @@ export function EventsLog() {
                 <tr className="bg-muted/20 border-b border-border">
                   <th
                     className={`py-4 text-[12px] font-bold uppercase tracking-wider ${
-                      isGuard
-                        ? 'pl-8 pr-3 text-left'
+                      isGuardOrAdmin
+                        ? 'px-2 text-center md:px-3 xl:px-4'
                         : isOfficeAdmin
                           ? 'pl-8 pr-3 text-left'
                         : isCompactTableLayout
@@ -1133,14 +1144,14 @@ export function EventsLog() {
                       style={
                         isOfficeAdmin
                           ? { paddingLeft: '18px' }
-                          : isGuard
-                            ? { paddingLeft: '18px' }
-                            : undefined
+                          : undefined
                       }
                       className={`inline-flex items-center gap-1 text-foreground/70 hover:text-foreground transition-colors text-[12px] font-bold uppercase tracking-wider ${
-                        isGuard || isOfficeAdmin
-                          ? 'w-full appearance-none border-0 bg-transparent p-0 m-0 text-left justify-start'
-                          : ''
+                        isGuardOrAdmin
+                          ? 'w-full appearance-none border-0 bg-transparent p-0 m-0 text-center justify-center'
+                          : isOfficeAdmin
+                            ? 'w-full appearance-none border-0 bg-transparent p-0 m-0 text-left justify-start'
+                            : ''
                       }`}
                     >
                       Дата и время
@@ -1162,7 +1173,7 @@ export function EventsLog() {
                   )}
                   <th
                     className={`text-center py-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider ${
-                      isCompactTableLayout ? 'px-3' : 'px-4'
+                      isGuardOrAdmin ? 'px-1.5 md:px-2.5 xl:px-3' : isCompactTableLayout ? 'px-3' : 'px-4'
                     }`}
                   >
                     Номер
@@ -1179,7 +1190,7 @@ export function EventsLog() {
                   {showStatusColumn && (
                     <th
                       className={`py-4 text-center text-[12px] font-bold text-foreground/70 uppercase tracking-wider ${
-                        isGuard ? 'px-4' : isCompactTableLayout ? 'pl-2 pr-4' : 'pl-3 pr-5'
+                        isGuardOrAdmin ? 'px-1.5 md:px-2 xl:px-2.5' : isCompactTableLayout ? 'pl-2 pr-4' : 'pl-3 pr-5'
                       }`}
                     >
                       Список
@@ -1237,8 +1248,8 @@ export function EventsLog() {
                       >
                         <td
                           className={`py-4 text-[14px] text-foreground/80 transition-colors hover:text-foreground ${
-                            isGuard
-                              ? 'pl-8 pr-3 text-left font-mono'
+                            isGuardOrAdmin
+                              ? 'px-2 text-center font-mono md:px-3 xl:px-4'
                               : isOfficeAdmin
                                 ? 'pl-8 pr-3 text-left font-mono'
                               : isCompactTableLayout
@@ -1259,7 +1270,7 @@ export function EventsLog() {
                         )}
                         <td
                           className={`py-4 text-center text-foreground/90 plate-text ${
-                            isCompactTableLayout ? 'px-3' : 'px-4'
+                            isGuardOrAdmin ? 'px-1.5 md:px-2.5 xl:px-3' : isCompactTableLayout ? 'px-3' : 'px-4'
                           }`}
                         >
                           <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -1299,7 +1310,7 @@ export function EventsLog() {
                         {canViewOwnerNames && (
                           <td
                             className={`py-4 text-center text-[14px] text-foreground/80 ${
-                              isCompactTableLayout ? 'px-3' : 'px-4'
+                              isGuardOrAdmin ? 'px-1.5 md:px-2.5 xl:px-3' : isCompactTableLayout ? 'px-3' : 'px-4'
                             }`}
                           >
                             <div className="flex flex-col items-center gap-1">
@@ -1321,14 +1332,16 @@ export function EventsLog() {
                         {showStatusColumn && (
                           <td
                             className={`py-4 text-center ${
-                              isGuard ? 'px-4' : isCompactTableLayout ? 'pl-2 pr-4' : 'pl-3 pr-5'
+                              isGuardOrAdmin ? 'px-1.5 md:px-2 xl:px-2.5' : isCompactTableLayout ? 'pl-2 pr-4' : 'pl-3 pr-5'
                             }`}
                           >
                             {isContractorRow ? (
                               <span className="inline-flex">
                                 <span
                                   className={`inline-flex items-center justify-center whitespace-nowrap rounded-full py-1 font-medium ${
-                                    isCompactTableLayout
+                                    isGuardOrAdmin
+                                      ? 'min-w-[88px] px-1.5 text-[11px] md:min-w-[94px] md:px-2 md:text-[12px] xl:min-w-[100px] xl:text-[12px]'
+                                      : isCompactTableLayout
                                       ? 'min-w-[124px] px-2.5 text-[12px]'
                                       : 'min-w-[140px] px-3 text-[13px]'
                                   } ${getStatusStyles(
@@ -1341,7 +1354,9 @@ export function EventsLog() {
                             ) : (
                               <span
                                 className={`inline-flex items-center justify-center whitespace-nowrap rounded-full py-1 font-medium ${
-                                  isCompactTableLayout
+                                  isGuardOrAdmin
+                                    ? 'min-w-[88px] px-1.5 text-[11px] md:min-w-[94px] md:px-2 md:text-[12px] xl:min-w-[100px] xl:text-[12px]'
+                                    : isCompactTableLayout
                                     ? 'min-w-[124px] px-2.5 text-[12px]'
                                     : 'min-w-[140px] px-3 text-[13px]'
                                 } ${getStatusStyles(
