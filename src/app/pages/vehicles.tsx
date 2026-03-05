@@ -1334,9 +1334,9 @@ export function Vehicles() {
 
         </div>
 
-        <div className="overflow-x-hidden">
+        <div className="overflow-x-auto">
 
-            <table className="w-full table-fixed">
+            <table className="w-full min-w-[1240px] table-fixed xl:min-w-full">
               {canViewOwnerNames ? (
                 <colgroup>
                   {canManage ? (
@@ -1487,7 +1487,7 @@ export function Vehicles() {
 
                         <span
 
-                          className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-[12px] font-semibold ${
+                          className={`inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-full text-[12px] font-semibold ${
 
                             categoryColors[vehicle.category]
 

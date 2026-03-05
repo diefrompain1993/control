@@ -599,19 +599,29 @@ export function ExportData() {
               type="button"
               onClick={() => setSelectedExport(option.id)}
               className={`rounded-xl border bg-white p-4 transition-colors duration-200 group ${
-                isUsersOption ? 'text-center lg:col-span-2' : 'text-left'
+                isUsersOption ? 'text-left lg:col-span-2 lg:text-center' : 'text-left'
               } ${
                 isSelected
                   ? `${accent.border} ring-2 ${accent.ring} shadow-sm`
                   : 'border-gray-200 hover:border-gray-300'
               }`}
             >
-              <div className={`flex gap-4 ${isUsersOption ? 'items-center justify-center lg:-translate-x-6' : 'items-start'}`}>
+              <div
+                className={`flex gap-4 ${
+                  isUsersOption
+                    ? 'items-start lg:items-center lg:justify-center lg:-translate-x-6'
+                    : 'items-start'
+                }`}
+              >
                 <div className={`rounded-lg p-2.5 ${accent.iconBg} ${accent.iconText}`}>
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className={isUsersOption ? 'min-w-0' : 'flex-1'}>
-                  <div className={`flex items-center gap-2 ${isUsersOption ? 'justify-center' : ''}`}>
+                  <div
+                    className={`flex items-center gap-2 ${
+                      isUsersOption ? 'justify-start lg:justify-center' : ''
+                    }`}
+                  >
                     <h3 className="text-lg font-semibold text-foreground">{option.title}</h3>
                     {isSelected && (
                       <span className={`text-xs font-semibold uppercase ${accent.text}`}>
@@ -619,7 +629,7 @@ export function ExportData() {
                       </span>
                     )}
                   </div>
-                  <p className={`mt-1 text-sm text-gray-600 ${isUsersOption ? 'text-center' : ''}`}>
+                  <p className={`mt-1 text-sm text-gray-600 ${isUsersOption ? 'text-left lg:text-center' : ''}`}>
                     {option.description}
                   </p>
                 </div>
@@ -743,12 +753,12 @@ export function ExportData() {
               <div
                 className={`transition-[max-height,opacity,transform,margin] duration-300 ease-out ${
                   showPresetTimeInputs
-                    ? 'mt-4 max-h-24 opacity-100 translate-y-0'
+                    ? 'mt-4 max-h-40 opacity-100 translate-y-0 md:max-h-24'
                     : 'mt-0 max-h-0 opacity-0 -translate-y-1 pointer-events-none'
                 }`}
                 style={{ overflow: 'hidden' }}
               >
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_260px] md:justify-start">
+                <div className="grid grid-cols-1 gap-4 md:max-w-[536px] md:grid-cols-2">
                   <TimePickerInput
                     label="Время с"
                     value={manualTimeFrom}
@@ -807,12 +817,12 @@ export function ExportData() {
                 <div
                   className={`transition-[max-height,opacity,transform,margin] duration-300 ease-out ${
                     showManualTimeInputs
-                      ? 'mt-4 max-h-24 opacity-100 translate-y-0'
+                      ? 'mt-4 max-h-40 opacity-100 translate-y-0 md:max-h-24'
                       : 'mt-0 max-h-0 opacity-0 -translate-y-1 pointer-events-none'
                   }`}
                   style={{ overflow: 'hidden' }}
                 >
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_260px] md:justify-start">
+                  <div className="grid grid-cols-1 gap-4 md:max-w-[536px] md:grid-cols-2">
                     <TimePickerInput
                       label="Время с"
                       value={manualTimeFrom}

@@ -32,7 +32,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     : 'min-w-0 lg:h-full lg:self-stretch';
   const quickSearchClass = showLastEntry
     ? 'w-full overflow-hidden xl:mt-0 xl:flex-1'
-    : 'w-full max-w-[396px] overflow-hidden lg:max-w-none';
+    : 'w-full overflow-hidden';
   const lastEntry = {
     time: '12:41:23',
     plateNumber: 'H 740640',

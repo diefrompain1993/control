@@ -155,6 +155,7 @@ export function EventsLog() {
   const [contractorTimeTo, setContractorTimeTo] = useState('');
   const [orgSuggestionsOpen, setOrgSuggestionsOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isNarrowContractorViewport, setIsNarrowContractorViewport] = useState(false);
   const [selectedContractorOwner, setSelectedContractorOwner] = useState<string | null>(null);
   const [contractorActivityRange, setContractorActivityRange] = useState<'today' | 'week' | 'month'>('today');
   const [contractorChartScrollLeft, setContractorChartScrollLeft] = useState(0);
@@ -344,13 +345,16 @@ export function EventsLog() {
   useEffect(() => {
     const detectSidebarState = () => {
       const aside = document.querySelector('aside');
-      if (!aside) return;
-      setIsSidebarCollapsed(aside.getBoundingClientRect().width <= 100);
+      if (aside) {
+        setIsSidebarCollapsed(aside.getBoundingClientRect().width <= 100);
+      }
+      setIsNarrowContractorViewport(window.innerWidth <= 1370);
     };
     const handleSetCollapsed = (event: Event) => {
       const customEvent = event as CustomEvent<{ collapsed?: boolean }>;
       if (typeof customEvent.detail?.collapsed === 'boolean') {
         setIsSidebarCollapsed(customEvent.detail.collapsed);
+        setIsNarrowContractorViewport(window.innerWidth <= 1370);
         return;
       }
       detectSidebarState();
@@ -514,7 +518,8 @@ export function EventsLog() {
   }, [selectedContractorEvents, contractorPanelNormalized, contractorActivityRange]);
 
   const contractorPanelOpen = Boolean(selectedContractorOwner);
-  const isCompactTableLayout = contractorPanelOpen;
+  const isStackedContractorLayout = contractorPanelOpen && isNarrowContractorViewport;
+  const isCompactTableLayout = contractorPanelOpen && !isStackedContractorLayout;
   const selectedContractorEntriesTotal = useMemo(
     () => selectedContractorActivity.reduce((sum, point) => sum + point.entries, 0),
     [selectedContractorActivity]
@@ -710,10 +715,11 @@ export function EventsLog() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+  const hasDisplayedEvents = displayedEvents.length > 0;
   const eventsTableColSpan =
     2 + (showCameraColumn ? 1 : 0) + (canViewOwnerNames ? 1 : 0) + (showStatusColumn ? 1 : 0);
   const tableFillerRowCount =
-    displayedEvents.length > 0 ? Math.max(0, itemsPerPage - displayedEvents.length) : 0;
+    hasDisplayedEvents ? Math.max(0, itemsPerPage - displayedEvents.length) : 0;
 
   const handleResetFilters = () => {
     setDateFilter('');
@@ -782,7 +788,7 @@ export function EventsLog() {
               />
             </div>
 
-            <div className="flex-1 min-w-[200px]">
+            <div className="w-full min-w-[200px] md:w-[280px] md:flex-none xl:min-w-[200px] xl:flex-1">
               <Select
                 label={'Список'}
                 value={statusFilter}
@@ -818,12 +824,14 @@ export function EventsLog() {
           aria-hidden={!showExtraFilters}
         >
           <div
-            className={`grid grid-cols-1 gap-4 md:justify-start ${
-              canViewOwnerNames ? 'md:grid-cols-[240px_180px_180px]' : 'md:grid-cols-[180px_180px]'
+            className={`grid grid-cols-1 gap-4 min-[560px]:justify-start ${
+              canViewOwnerNames
+                ? 'min-[560px]:max-w-[640px] min-[560px]:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)]'
+                : 'min-[560px]:max-w-[420px] min-[560px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]'
             }`}
           >
             {canViewOwnerNames && (
-              <div className="relative z-50">
+              <div className="relative z-50 min-w-0">
                 <Input
                   label={isContractorFilter ? 'Организация' : 'Владелец'}
                   value={contractorQuery}
@@ -868,21 +876,25 @@ export function EventsLog() {
               </div>
             )}
 
-            <TimePickerInput
-              label={'Время с'}
-              value={contractorTimeFrom}
-              onChange={setContractorTimeFrom}
-              placeholder="00:00:00"
-              className="h-[36px]"
-            />
+            <div className="min-w-0">
+              <TimePickerInput
+                label={'Время с'}
+                value={contractorTimeFrom}
+                onChange={setContractorTimeFrom}
+                placeholder="00:00:00"
+                className="h-[36px]"
+              />
+            </div>
 
-            <TimePickerInput
-              label={'Время по'}
-              value={contractorTimeTo}
-              onChange={setContractorTimeTo}
-              placeholder="23:59:59"
-              className="h-[36px]"
-            />
+            <div className="min-w-0">
+              <TimePickerInput
+                label={'Время по'}
+                value={contractorTimeTo}
+                onChange={setContractorTimeTo}
+                placeholder="23:59:59"
+                className="h-[36px]"
+              />
+            </div>
           </div>
         </div>
       </FilterBar>
@@ -901,53 +913,71 @@ export function EventsLog() {
         }}
         style={{
           gridTemplateColumns: contractorPanelOpen
-            ? isSidebarCollapsed
+            ? isStackedContractorLayout
+              ? 'minmax(0, 1fr)'
+              : isSidebarCollapsed
               ? 'minmax(300px, 35%) minmax(0, 1fr)'
               : 'minmax(280px, 31%) minmax(0, 1fr)'
             : '0px minmax(0, 1fr)'
         }}
       >
         <div
-          className={`self-start mt-0 overflow-hidden transition-[opacity,max-width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
+          className={`self-start mt-0 overflow-hidden transition-[opacity,max-width,max-height] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
             contractorPanelOpen
-              ? 'opacity-100 max-w-[1000px]'
-              : 'opacity-0 max-w-0 pointer-events-none'
+              ? isStackedContractorLayout
+                ? 'opacity-100 max-w-full max-h-[1200px]'
+                : 'opacity-100 max-w-[1000px] max-h-[1200px]'
+              : 'opacity-0 max-w-0 max-h-0 pointer-events-none'
           }`}
         >
           <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-            <div className="px-8 py-6 border-b border-border flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-[20px] font-bold text-foreground tracking-tight">Активность въездов</h2>
-                {contractorPanelOwner && (
-                  <p className="mt-1 truncate text-sm font-medium text-foreground/75">{contractorPanelOwner}</p>
-                )}
+            <div className="px-8 py-6 border-b border-border">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-5">
+                <h2 className="min-w-0 whitespace-normal break-normal [overflow-wrap:normal] [word-break:normal] text-[20px] font-bold leading-tight text-foreground tracking-tight">
+                  Активность въездов
+                </h2>
+                <div
+                  className={`ml-auto shrink-0 inline-flex items-center rounded-lg border border-border bg-muted/20 ${
+                    isStackedContractorLayout ? 'h-9 p-0.5' : 'h-8 p-0.5'
+                  }`}
+                  data-contractor-interactive="true"
+                >
+                  {[
+                    { value: 'today', label: 'Сегодня' },
+                    { value: 'week', label: 'Неделя' },
+                    { value: 'month', label: 'Месяц' }
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setContractorActivityRange(option.value as 'today' | 'week' | 'month')}
+                      className={`whitespace-nowrap rounded-md border border-transparent font-medium leading-none transition-colors ${
+                        isStackedContractorLayout
+                          ? 'h-7 px-2.5 text-[13px]'
+                          : 'h-6 px-1.5 text-[11px]'
+                      } ${
+                        contractorActivityRange === option.value
+                          ? 'bg-white text-foreground shadow-sm'
+                          : 'text-foreground/70 hover:text-foreground'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div
-                className="inline-flex h-10 items-center rounded-xl border border-border bg-muted/20 p-1"
-                data-contractor-interactive="true"
-              >
-                {[
-                  { value: 'today', label: 'Сегодня' },
-                  { value: 'week', label: 'Неделя' },
-                  { value: 'month', label: 'Месяц' }
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setContractorActivityRange(option.value as 'today' | 'week' | 'month')}
-                    className={`h-8 rounded-lg px-3 text-sm transition-colors ${
-                      contractorActivityRange === option.value
-                        ? 'bg-white text-foreground shadow-sm'
-                        : 'text-foreground/70 hover:text-foreground'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+              {contractorPanelOwner && (
+                <p className="mt-2 text-sm font-medium text-foreground/75 whitespace-nowrap">{contractorPanelOwner}</p>
+              )}
             </div>
 
-            <div className="h-[clamp(432px,69vh,572px)] px-5 pt-5 pb-6 flex flex-col">
+            <div
+              className={`px-5 pt-5 pb-6 flex flex-col ${
+                isStackedContractorLayout
+                  ? 'h-[clamp(316px,48vh,380px)]'
+                  : 'h-[clamp(432px,69vh,572px)]'
+              }`}
+            >
               <div
                 ref={contractorChartScrollRef}
                 className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden pb-2"
@@ -1048,7 +1078,7 @@ export function EventsLog() {
           </div>
 
           <div
-            className="overflow-x-auto overflow-y-hidden"
+            className={hasDisplayedEvents ? 'overflow-x-auto overflow-y-hidden' : 'overflow-x-hidden overflow-y-hidden'}
             onClick={(event) => {
               if (!contractorPanelOpen) return;
               if (event.target === event.currentTarget) {
@@ -1056,24 +1086,34 @@ export function EventsLog() {
               }
             }}
           >
-            <table className="w-full table-fixed">
-              <colgroup>
-                {isGuard ? (
-                  <>
-                    <col style={{ width: showStatusColumn ? '34%' : '50%' }} />
-                    <col style={{ width: showStatusColumn ? '33%' : '50%' }} />
-                    {showStatusColumn && <col style={{ width: '33%' }} />}
-                  </>
-                ) : (
-                  <>
-                    <col style={{ width: isCompactTableLayout ? 196 : 220 }} />
-                    {showCameraColumn && <col style={{ width: isCompactTableLayout ? 108 : 124 }} />}
-                    <col style={{ width: isCompactTableLayout ? 196 : 220 }} />
-                    {canViewOwnerNames && <col style={{ width: isCompactTableLayout ? 176 : 210 }} />}
-                    {showStatusColumn && <col style={{ width: isCompactTableLayout ? 148 : 170 }} />}
-                  </>
-                )}
-              </colgroup>
+            <table
+              className={
+                hasDisplayedEvents
+                  ? isCompactTableLayout
+                    ? 'w-full table-fixed'
+                    : 'w-full min-w-[980px] table-fixed xl:min-w-full'
+                  : 'w-full table-auto'
+              }
+            >
+              {hasDisplayedEvents && (
+                <colgroup>
+                  {isGuard ? (
+                    <>
+                      <col style={{ width: showStatusColumn ? '34%' : '50%' }} />
+                      <col style={{ width: showStatusColumn ? '33%' : '50%' }} />
+                      {showStatusColumn && <col style={{ width: '33%' }} />}
+                    </>
+                  ) : (
+                    <>
+                      <col style={{ width: isCompactTableLayout ? 196 : 220 }} />
+                      {showCameraColumn && <col style={{ width: isCompactTableLayout ? 108 : 124 }} />}
+                      <col style={{ width: isCompactTableLayout ? 196 : 220 }} />
+                      {canViewOwnerNames && <col style={{ width: isCompactTableLayout ? 176 : 210 }} />}
+                      {showStatusColumn && <col style={{ width: isCompactTableLayout ? 148 : 170 }} />}
+                    </>
+                  )}
+                </colgroup>
+              )}
               <thead>
                 <tr className="bg-muted/20 border-b border-border">
                   <th
@@ -1148,7 +1188,7 @@ export function EventsLog() {
                 </tr>
               </thead>
               <tbody className="bg-white">
-                {displayedEvents.length > 0 ? (
+                {hasDisplayedEvents ? (
                   displayedEvents.map((event, index) => {
                     const isUnrecognized = event.status === 'Нет в списках';
                     const ownerLabel = isUnrecognized ? 'Неизвестно' : event.owner;

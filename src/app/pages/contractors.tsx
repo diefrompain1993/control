@@ -1086,7 +1086,7 @@ export function Contractors() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
+          <table className="w-full min-w-[1220px] table-fixed xl:min-w-full">
             <colgroup>
               <col className="w-[220px]" />
               {canViewOwnerNames && <col className="w-[240px]" />}

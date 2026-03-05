@@ -130,7 +130,7 @@ function AppShell() {
 
           <main
             ref={mainScrollRef}
-            className="flex-1 overflow-y-scroll [scrollbar-gutter:stable] p-8"
+            className="flex-1 overflow-y-auto [scrollbar-gutter:stable] p-8"
           >
             <RequireRole roles={ROUTE_CONFIG[activeRouteId].roles}>{renderPage()}</RequireRole>
           </main>

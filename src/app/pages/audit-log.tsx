@@ -315,13 +315,13 @@ export function AuditLog() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
+          <table className="w-full min-w-[1180px] table-fixed xl:min-w-full">
             <colgroup>
               <col className="w-[220px]" />
               <col className="w-[220px]" />
               <col className="w-[220px]" />
               <col className="w-[200px]" />
-              <col className="w-[300px]" />
+              <col className="w-[236px]" />
             </colgroup>
             <thead>
               <tr className="bg-muted/20 border-b border-border">

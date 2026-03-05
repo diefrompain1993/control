@@ -24,7 +24,7 @@ export function DataTable({
   return (
     <div className="bg-white rounded-lg transition-all duration-200">
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-[900px] xl:min-w-full">
           <thead>
             <tr className="border-b bg-gray-50">
               {columns.map((column) => (

@@ -1086,7 +1086,7 @@ export function WhiteList() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
+          <table className="w-full min-w-[980px] table-fixed xl:min-w-full">
             <colgroup>
               {canManage && canViewOwnerNames ? (
                 <>

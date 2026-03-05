@@ -15,14 +15,6 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Select } from '@/app/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/app/components/ui/dialog';
-import {
   Drawer,
   DrawerContent,
   DrawerDescription,
@@ -419,8 +411,8 @@ export function Users() {
 
   return (
     <>
-      <div className="mb-6 flex items-start justify-between">
-        <div>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl mb-2">Пользователи</h1>
           <p className="text-sm text-gray-600">
             Список пользователей, доступных в системе
@@ -430,7 +422,7 @@ export function Users() {
         {canManageUser && (
           <Drawer open={dialogOpen} onOpenChange={handleDialogChange} direction="right">
             <DrawerTrigger asChild>
-              <Button icon={<Plus className="w-4 h-4" />}>
+              <Button icon={<Plus className="w-4 h-4" />} className="shrink-0 whitespace-nowrap">
                 Добавить пользователя
               </Button>
             </DrawerTrigger>
@@ -558,128 +550,127 @@ export function Users() {
       </div>
 
       {canManageUser && (
-        <Dialog open={editDialogOpen} onOpenChange={handleEditDialogChange}>
-          <DialogContent
-            className="max-w-xl"
-            onOpenAutoFocus={(event) => event.preventDefault()}
-          >
-            <DialogHeader>
-              <DialogTitle>Редактирование пользователя</DialogTitle>
-              <DialogDescription className="text-foreground/80 font-medium">
+        <Drawer open={editDialogOpen} onOpenChange={handleEditDialogChange} direction="right">
+          <DrawerContent className="data-[vaul-drawer-direction=right]:w-full data-[vaul-drawer-direction=right]:sm:max-w-xl overflow-y-auto overflow-x-hidden">
+            <DrawerHeader>
+              <DrawerTitle>Редактирование пользователя</DrawerTitle>
+              <DrawerDescription className="text-foreground/80 font-medium">
                 Обновите данные пользователя. Пароль можно оставить пустым, если менять не нужно.
-              </DialogDescription>
-            </DialogHeader>
+              </DrawerDescription>
+            </DrawerHeader>
 
-            {editErrors.form && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {editErrors.form}
-              </div>
-            )}
+            <div className="space-y-4 px-4 pb-4">
+              {editErrors.form && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {editErrors.form}
+                </div>
+              )}
 
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                handleEditUser();
-              }}
-              className="grid gap-4"
-            >
-              <div>
-                <Input
-                  label="Фамилия Имя Отчество"
-                  value={editForm.fullName}
-                  onChange={(value) => {
-                    setEditForm((prev) => ({ ...prev, fullName: value }));
-                    if (editErrors.fullName || editErrors.form) {
-                      setEditErrors((prev) => ({
-                        ...prev,
-                        fullName: undefined,
-                        form: undefined
-                      }));
-                    }
-                  }}
-                  placeholder="Иванов Иван Иванович"
-                />
-                {editErrors.fullName && (
-                  <p className="mt-1 text-xs text-red-600">{editErrors.fullName}</p>
-                )}
-              </div>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleEditUser();
+                }}
+                className="grid gap-4"
+              >
+                <div>
+                  <Input
+                    label="Фамилия Имя Отчество"
+                    value={editForm.fullName}
+                    onChange={(value) => {
+                      setEditForm((prev) => ({ ...prev, fullName: value }));
+                      if (editErrors.fullName || editErrors.form) {
+                        setEditErrors((prev) => ({
+                          ...prev,
+                          fullName: undefined,
+                          form: undefined
+                        }));
+                      }
+                    }}
+                    placeholder="Иванов Иван Иванович"
+                  />
+                  {editErrors.fullName && (
+                    <p className="mt-1 text-xs text-red-600">{editErrors.fullName}</p>
+                  )}
+                </div>
 
-              <div>
-                <Input
-                  label="Электронная почта"
-                  value={editForm.email}
-                  onChange={(value) => {
-                    setEditForm((prev) => ({ ...prev, email: value }));
-                    if (editErrors.email || editErrors.form) {
-                      setEditErrors((prev) => ({
-                        ...prev,
-                        email: undefined,
-                        form: undefined
-                      }));
-                    }
-                  }}
-                  placeholder="name@example.com"
-                  type="email"
-                />
-                {editErrors.email && (
-                  <p className="mt-1 text-xs text-red-600">{editErrors.email}</p>
-                )}
-              </div>
+                <div>
+                  <Input
+                    label="Электронная почта"
+                    value={editForm.email}
+                    onChange={(value) => {
+                      setEditForm((prev) => ({ ...prev, email: value }));
+                      if (editErrors.email || editErrors.form) {
+                        setEditErrors((prev) => ({
+                          ...prev,
+                          email: undefined,
+                          form: undefined
+                        }));
+                      }
+                    }}
+                    placeholder="name@example.com"
+                    type="email"
+                  />
+                  {editErrors.email && (
+                    <p className="mt-1 text-xs text-red-600">{editErrors.email}</p>
+                  )}
+                </div>
 
-              <div>
-                <Input
-                  label="Новый пароль"
-                  value={editForm.password}
-                  onChange={(value) => {
-                    setEditForm((prev) => ({ ...prev, password: value }));
-                    if (editErrors.password || editErrors.form) {
-                      setEditErrors((prev) => ({
-                        ...prev,
-                        password: undefined,
-                        form: undefined
-                      }));
-                    }
-                  }}
-                  placeholder="Оставьте пустым, если не нужно менять"
-                  type="password"
-                />
-                {editErrors.password && (
-                  <p className="mt-1 text-xs text-red-600">{editErrors.password}</p>
-                )}
-              </div>
+                <div>
+                  <Input
+                    label="Новый пароль"
+                    value={editForm.password}
+                    onChange={(value) => {
+                      setEditForm((prev) => ({ ...prev, password: value }));
+                      if (editErrors.password || editErrors.form) {
+                        setEditErrors((prev) => ({
+                          ...prev,
+                          password: undefined,
+                          form: undefined
+                        }));
+                      }
+                    }}
+                    placeholder="Оставьте пустым, если не нужно менять"
+                    type="password"
+                  />
+                  {editErrors.password && (
+                    <p className="mt-1 text-xs text-red-600">{editErrors.password}</p>
+                  )}
+                </div>
 
-              <div>
-                <Select
-                  label="Роль"
-                  value={editForm.role}
-                  onChange={(value) => {
-                    setEditForm((prev) => ({ ...prev, role: value }));
-                    if (editErrors.role || editErrors.form) {
-                      setEditErrors((prev) => ({
-                        ...prev,
-                        role: undefined,
-                        form: undefined
-                      }));
-                    }
-                  }}
-                  options={roleOptions}
-                  placeholder="Выберите роль"
-                  hidePlaceholderOption
-                />
-                {editErrors.role && (
-                  <p className="mt-1 text-xs text-red-600">{editErrors.role}</p>
-                )}
-              </div>
+                <div>
+                  <Select
+                    label="Роль"
+                    value={editForm.role}
+                    onChange={(value) => {
+                      setEditForm((prev) => ({ ...prev, role: value }));
+                      if (editErrors.role || editErrors.form) {
+                        setEditErrors((prev) => ({
+                          ...prev,
+                          role: undefined,
+                          form: undefined
+                        }));
+                      }
+                    }}
+                    options={roleOptions}
+                    placeholder="Выберите роль"
+                    hidePlaceholderOption
+                  />
+                  {editErrors.role && (
+                    <p className="mt-1 text-xs text-red-600">{editErrors.role}</p>
+                  )}
+                </div>
 
-              <DialogFooter>
-                <Button variant="secondary" onClick={() => handleEditDialogChange(false)}>
-                  Отмена
-                </Button>
-                <Button type="submit">Сохранить</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DrawerFooter className="mt-8 p-0 sm:flex-row sm:justify-start">
+                  <Button type="submit">Сохранить</Button>
+                  <Button variant="secondary" onClick={() => handleEditDialogChange(false)}>
+                    Отмена
+                  </Button>
+                </DrawerFooter>
+              </form>
+            </div>
+          </DrawerContent>
+        </Drawer>
       )}
 
       <div ref={tableHostRef} className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
@@ -689,7 +680,7 @@ export function Users() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
+          <table className="w-full min-w-[1120px] table-fixed xl:min-w-full">
             <colgroup>
               {canManageUser ? (
                 <>
@@ -722,10 +713,10 @@ export function Users() {
                     Пароль
                   </th>
                 )}
-                <th className="text-center py-4 px-8 text-[12px] font-bold text-foreground/70 uppercase tracking-wider">
+                <th className="text-center py-4 px-4 text-[12px] font-bold text-foreground/70 uppercase tracking-wider 2xl:px-8">
                   Роль
                 </th>
-                <th className="text-center py-4 px-8 text-[12px] font-bold uppercase tracking-wider">
+                <th className="text-center py-4 px-4 text-[12px] font-bold uppercase tracking-wider 2xl:px-8">
                   <div
                     className="inline-flex items-center justify-center gap-1 text-foreground/70 hover:text-foreground cursor-pointer select-none text-[12px] font-bold uppercase tracking-wider"
                     onClick={() => setLastLoginSort((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
@@ -772,12 +763,12 @@ export function Users() {
                       {entry.password || '—'}
                     </td>
                   )}
-                  <td className="py-4 px-8 text-center text-[14px] text-foreground/80">
-                    <span className="mx-auto inline-flex h-9 w-[220px] max-w-full items-center justify-center whitespace-nowrap rounded-full bg-slate-100 px-4 py-1 text-[13px] font-medium text-foreground/80">
+                  <td className="py-4 px-4 text-center text-[14px] text-foreground/80 2xl:px-8">
+                    <span className="mx-auto inline-flex h-9 w-[200px] max-w-full items-center justify-center whitespace-nowrap rounded-full bg-slate-100 px-3 py-1 text-[12px] font-medium text-foreground/80 2xl:w-[220px] 2xl:px-4 2xl:text-[13px]">
                       {roleLabels[entry.role]}
                     </span>
                   </td>
-                  <td className="py-4 px-8 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground">
+                  <td className="py-4 px-4 text-center text-[14px] text-foreground/80 font-mono transition-colors hover:text-foreground 2xl:px-8">
                     {entry.lastLogin}
                   </td>
                   {canManageUser && (
