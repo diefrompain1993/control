@@ -27,10 +27,10 @@ const buttonVariants = cva(
 
 interface ButtonProps {
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'destructive';
-  size?: 'sm' | 'md';
+  variant?: 'primary' | 'secondary' | 'destructive' | 'outline' | 'ghost';
+  size?: 'sm' | 'md' | 'icon';
   icon?: React.ReactNode;
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
   className?: string;
@@ -51,12 +51,15 @@ export function Button({
   const variantStyles = {
     primary: 'bg-blue-600 text-white hover:bg-blue-700',
     secondary: 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50',
-    destructive: 'bg-red-600 text-white hover:bg-red-700'
+    destructive: 'bg-red-600 text-white hover:bg-red-700',
+    outline: 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50',
+    ghost: 'text-gray-700 hover:bg-gray-100'
   };
   
   const sizeStyles = {
     sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-sm'
+    md: 'px-4 py-2 text-sm',
+    icon: 'h-10 w-10 p-0'
   };
   
   const disabledStyles = 'disabled:opacity-50 disabled:cursor-not-allowed';

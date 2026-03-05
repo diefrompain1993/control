@@ -834,7 +834,7 @@ export function WhiteList() {
                         label="Список"
                         value={form.category}
                         onChange={(value) => {
-                          setForm((prev) => ({ ...prev, category: value }));
+                          setForm((prev) => ({ ...prev, category: value as StoredVehicle['category'] }));
                           if (errors.category || errors.accessFrom || errors.accessTo) {
                             setErrors((prev) => ({
                               ...prev,

@@ -87,7 +87,7 @@ const parseRangeValue = (value: string): DateRange | undefined => {
         return { from: startDate };
       }
       if (endDate) {
-        return { to: endDate };
+        return { from: endDate, to: endDate };
       }
     }
   }
@@ -322,8 +322,8 @@ export function DatePickerInput({
           </div>
           <Calendar
             mode={mode}
-            selected={mode === 'single' ? selectedDate : selectedRange}
-            onSelect={mode === 'single' ? handleSelectSingle : handleSelect}
+            selected={(mode === 'single' ? selectedDate : selectedRange) as any}
+            onSelect={(mode === 'single' ? handleSelectSingle : handleSelect) as any}
             locale={ru}
             weekStartsOn={1}
             captionLayout="dropdown"

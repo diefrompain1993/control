@@ -32,7 +32,12 @@ function Calendar({
     className: dropdownClassName
   }: DropdownProps) => {
     const [open, setOpen] = React.useState(false);
-    const options = React.Children.toArray(children).filter(React.isValidElement);
+    const options = React.Children.toArray(children).filter(
+      (
+        child
+      ): child is React.ReactElement<{ value?: string | number; children?: React.ReactNode }> =>
+        React.isValidElement(child)
+    );
 
     const handleSelect = (nextValue: string) => {
       if (onChange) {
@@ -60,7 +65,6 @@ function Calendar({
           >
             <div className="max-h-56 overflow-y-auto py-1">
               {options.map((option) => {
-                if (!React.isValidElement(option)) return null;
                 const optionValue = String(option.props.value);
                 const isSelected = String(value) === optionValue;
                 return (

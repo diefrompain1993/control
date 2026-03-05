@@ -32,7 +32,7 @@ import { isContractorOwnerExpiredOnDate } from '@/app/utils/contractorAccess';
 import { getRoutePath } from '@/app/routesConfig';
 import { usePaginatedPageScroll } from '@/app/hooks/use-paginated-page-scroll';
 
-type Event = EventLogEntry;
+type EventEntry = EventLogEntry;
 const SIDEBAR_SET_COLLAPSED_EVENT = 'app:sidebar:set-collapsed';
 type ContractorActivityPoint = {
   label: string;
@@ -173,7 +173,7 @@ export function EventsLog() {
   const showExtraFilters = ['Подрядчик', 'Белый', 'Чёрный'].includes(statusFilter);
   const isContractorFilter = statusFilter === 'Подрядчик';
 
-  const getStatusStyles = (status: Event['status']) => {
+  const getStatusStyles = (status: EventEntry['status']) => {
     const styles = {
       'Чёрный': 'bg-red-50 text-red-500',
       'Белый': 'bg-emerald-50 text-emerald-500',
@@ -192,7 +192,7 @@ export function EventsLog() {
     });
 
   const countryOptions = useMemo(() => {
-    const present = new Set(
+    const present = new Set<string>(
       MOCK_EVENTS.map((event) => getPlateCountryInfo(event.plateNumber).code).filter(
         (code) => code !== 'UNKNOWN'
       )
@@ -352,8 +352,8 @@ export function EventsLog() {
       }
       setIsNarrowContractorViewport(window.innerWidth <= 1370);
     };
-    const handleSetCollapsed = (event: Event) => {
-      const customEvent = event as CustomEvent<{ collapsed?: boolean }>;
+    const handleSetCollapsed: EventListener = (event) => {
+      const customEvent = event as unknown as CustomEvent<{ collapsed?: boolean }>;
       if (typeof customEvent.detail?.collapsed === 'boolean') {
         setIsSidebarCollapsed(customEvent.detail.collapsed);
         setIsNarrowContractorViewport(window.innerWidth <= 1370);
@@ -363,13 +363,10 @@ export function EventsLog() {
     };
 
     detectSidebarState();
-    window.addEventListener(SIDEBAR_SET_COLLAPSED_EVENT, handleSetCollapsed as EventListener);
+    window.addEventListener(SIDEBAR_SET_COLLAPSED_EVENT, handleSetCollapsed);
     window.addEventListener('resize', detectSidebarState);
     return () => {
-      window.removeEventListener(
-        SIDEBAR_SET_COLLAPSED_EVENT,
-        handleSetCollapsed as EventListener
-      );
+      window.removeEventListener(SIDEBAR_SET_COLLAPSED_EVENT, handleSetCollapsed);
       window.removeEventListener('resize', detectSidebarState);
     };
   }, []);

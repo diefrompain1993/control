@@ -414,15 +414,15 @@ export function QuickSearch({ className }: QuickSearchProps) {
               </div>
             </div>
 
-            <div className="mt-auto pt-5 flex items-center justify-between gap-3">
+            <div className="mt-auto pt-5 flex items-center justify-between gap-3 [@media(min-width:1024px)_and_(max-width:1279px)]:gap-2">
               <button
                 type="button"
                 onClick={() => canOpenNote && setDetailsOpen(true)}
                 disabled={!canOpenNote}
                 className={
                   canOpenNote
-                    ? "flex items-center gap-1.5 text-sm transition-smooth text-primary hover:text-primary/80 [@media(max-width:1279px)]:text-[15px]"
-                    : "flex items-center gap-1.5 text-sm transition-smooth text-muted-foreground/60 cursor-not-allowed [@media(max-width:1279px)]:text-[15px]"
+                    ? "flex items-center gap-1.5 text-sm transition-smooth text-primary hover:text-primary/80 [@media(min-width:1024px)_and_(max-width:1279px)]:gap-1 [@media(min-width:1024px)_and_(max-width:1279px)]:text-[13px] [@media(min-width:1024px)_and_(max-width:1279px)]:whitespace-nowrap"
+                    : "flex items-center gap-1.5 text-sm transition-smooth text-muted-foreground/60 cursor-not-allowed [@media(min-width:1024px)_and_(max-width:1279px)]:gap-1 [@media(min-width:1024px)_and_(max-width:1279px)]:text-[13px] [@media(min-width:1024px)_and_(max-width:1279px)]:whitespace-nowrap"
                 }
               >
                 <MessageSquare className="w-4 h-4" strokeWidth={2} />
@@ -434,7 +434,7 @@ export function QuickSearch({ className }: QuickSearchProps) {
                 variant="secondary"
                 onClick={handleOpenCard}
                 disabled={!hasFoundResult}
-                className="h-8 px-3 text-sm font-semibold inline-flex items-center gap-1.5 [@media(max-width:1279px)]:h-9 [@media(max-width:1279px)]:px-4 [@media(max-width:1279px)]:text-[15px]"
+                className="h-8 px-3 text-sm font-semibold inline-flex items-center gap-1.5 whitespace-nowrap [@media(min-width:1024px)_and_(max-width:1279px)]:h-8 [@media(min-width:1024px)_and_(max-width:1279px)]:px-2.5 [@media(min-width:1024px)_and_(max-width:1279px)]:text-[13px]"
               >
                 Посмотреть въезды
                 <ArrowRight className="w-4 h-4" />
